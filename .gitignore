@@ -1,0 +1,60 @@
+# Local files to ignore
+pypl2mp3.app
+pypl2mp3.scpt
+
+# Byte-compiled / cached files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment (Poetry-specific)
+.poetry/
+
+# If you let Poetry manage the venv inside the project directory
+.env/
+.venv/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Logs
+logs/
+*.log
+debug.log
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-workspace
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# pytest cache
+.pytest_cache/
+
+# mypy cache
+.mypy_cache/
+
+# Coverage reports
+htmlcov/
+.coverage
+*.cover
+*.py,cover
+
+# Secrets / Environment variables
+.env
+*.pem
+*.key
+
+# Poetry lock file (optional: include only if you regenerate frequently)
+# **NOTE**: Usually, `poetry.lock` should be committed for reproducible environments.
+# Uncomment the following line **only if you want to ignore it**
+# poetry.lock

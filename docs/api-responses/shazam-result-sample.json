@@ -1,0 +1,125 @@
+{
+    "matches":[
+        {
+            "id":"344549721",
+            "offset":63.103769531,
+            "timeskew":-0.0058523417,
+            "frequencyskew":-9.202957e-05
+        }
+    ],
+    "location":{
+        "accuracy":0.01
+    },
+    "timestamp":1715327819661,
+    "timezone":"Europe/Moscow",
+    "track":{
+        "layout":"5",
+        "type":"MUSIC",
+        "key":"344549721",
+        "title":"Life: Album Minimix",
+        "subtitle":"Sigma",
+        "share":{
+            "subject":"Life: Album Minimix - Sigma",
+            "text":"Life: Album Minimix by Sigma",
+            "href":"https://www.shazam.com/track/344549721/life-album-minimix",
+            "twitter":"I used @Shazam to discover Life: Album Minimix by Sigma.",
+            "html":"https://www.shazam.com/snippets/email-share/344549721?lang=en-US&country=GB",
+            "snapchat":"https://www.shazam.com/partner/sc/track/344549721"
+        },
+        "hub":{
+            "type":"APPLEMUSIC",
+            "image":"https://images.shazam.com/static/icons/hub/ios/v5/applemusic_{scalefactor}.png",
+            "options":[
+                {
+                    "caption":"OPEN IN",
+                    "actions":[
+                        {
+                            "name":"hub:applemusic:subscribe",
+                            "type":"applemusicopen",
+                            "uri":"https://music.apple.com/subscribe?mttnagencyid=s2n&mttnsiteid=125115&mttn3pid=Apple-Shazam&mttnsub1=Shazam_ios&mttnsub2=5348615A-616D-3235-3830-44754D6D5973&itscg=30201&app=music&itsct=Shazam_ios"
+                        },
+                        {
+                            "name":"hub:applemusic:subscribe",
+                            "type":"uri",
+                            "uri":"https://music.apple.com/subscribe?mttnagencyid=s2n&mttnsiteid=125115&mttn3pid=Apple-Shazam&mttnsub1=Shazam_ios&mttnsub2=5348615A-616D-3235-3830-44754D6D5973&itscg=30201&app=music&itsct=Shazam_ios"
+                        }
+                    ],
+                    "beacondata":{
+                        "type":"open",
+                        "providername":"applemusic"
+                    },
+                    "image":"https://images.shazam.com/static/icons/hub/ios/v5/overflow-open-option_{scalefactor}.png",
+                    "type":"open",
+                    "listcaption":"Open in Apple Music",
+                    "overflowimage":"https://images.shazam.com/static/icons/hub/ios/v5/applemusic-overflow_{scalefactor}.png",
+                    "colouroverflowimage":false,
+                    "providername":"applemusic"
+                }
+            ],
+            "providers":[
+                {
+                    "caption":"Open in Spotify",
+                    "images":{
+                        "overflow":"https://images.shazam.com/static/icons/hub/ios/v5/spotify-overflow_{scalefactor}.png",
+                        "default":"https://images.shazam.com/static/icons/hub/ios/v5/spotify_{scalefactor}.png"
+                    },
+                    "actions":[
+                        {
+                            "name":"hub:spotify:searchdeeplink",
+                            "type":"uri",
+                            "uri":"spotify:search:Life%3A%20Album%20Minimix%20Sigma"
+                        }
+                    ],
+                    "type":"SPOTIFY"
+                },
+                {
+                    "caption":"Open in Deezer",
+                    "images":{
+                        "overflow":"https://images.shazam.com/static/icons/hub/ios/v5/deezer-overflow_{scalefactor}.png",
+                        "default":"https://images.shazam.com/static/icons/hub/ios/v5/deezer_{scalefactor}.png"
+                    },
+                    "actions":[
+                        {
+                            "name":"hub:deezer:searchdeeplink",
+                            "type":"uri",
+                            "uri":"deezer-query://www.deezer.com/play?query=%7Btrack%3A%27Life%3A+Album+Minimix%27%20artist%3A%27Sigma%27%7D"
+                        }
+                    ],
+                    "type":"DEEZER"
+                }
+            ],
+            "explicit":false,
+            "displayname":"APPLE MUSIC"
+        },
+        "sections":[
+            {
+                "type":"SONG",
+                "metapages":[
+                    
+                ],
+                "tabname":"Song",
+                "metadata":[
+                    {
+                        "title":"Title",
+                        "text":"Life: Album Minimix"
+                    }
+                ]
+            },
+            {
+                "type":"RELATED",
+                "url":"https://cdn.shazam.com/shazam/v3/en-US/GB/iphone/-/tracks/track-similarities-id-344549721?startFrom=0&pageSize=20&connected=",
+                "tabname":"Related"
+            }
+        ],
+        "url":"https://www.shazam.com/track/344549721/life-album-minimix",
+        "urlparams":{
+            "{tracktitle}":"Life%3A+Album+Minimix",
+            "{trackartist}":"Sigma"
+        },
+        "highlightsurls":{
+            
+        },
+        "relatedtracksurl":"https://cdn.shazam.com/shazam/v3/en-US/GB/iphone/-/tracks/track-similarities-id-344549721?startFrom=0&pageSize=20&connected="
+    },
+    "tagid":"8BED7044-39F5-4EEF-B16C-B7F42B4A81FE"
+}

@@ -1,0 +1,99 @@
+{
+    "kind": "youtube#video",
+    "etag": "WWGfPQYKY85bEvCFG2nYwb1oBVU",
+    "id": "krpcRnxVCmA",
+    "snippet": {
+        "publishedAt": "2015-08-27T14:00:54Z",
+        "channelId": "UCFeWEe1ABbRtNPY-WfUw8Uw",
+        "title": "Destroyer - Times Square",
+        "description": "From the album Poison Season, out August 28, 2015.\nVinyl / CD:  http://smarturl.it/poisonseason\nDownload:  http://smarturl.it/PoisonSeasonDL\n\nDan Bejar: vocals\nTed Bois: piano\nNicolas Bragg: lead guitar\nDavid Carswell: rhythm guitars\nJP Carter: trumpet\nJohn Collins: bass\nJoseph Shabason: saxophone\nJosh Wells: drums, congas, percussion\n\nmixed by David Carswell\n\ndirected and animated by Shayne Ehman\n\nfilm production assistants: Tony Romano, Zoe Gordon, Axel Ehman\n\nWe acknowledge the financial support of Canada\u2019s Private Radio Broadcasters and FACTOR.\n\nhttp://vevo.ly/UWEXhS",
+        "thumbnails": {
+            "default": {
+                "url": "https://i.ytimg.com/vi/krpcRnxVCmA/default.jpg",
+                "width": 120,
+                "height": 90
+            },
+            "medium": {
+                "url": "https://i.ytimg.com/vi/krpcRnxVCmA/mqdefault.jpg",
+                "width": 320,
+                "height": 180
+            },
+            "high": {
+                "url": "https://i.ytimg.com/vi/krpcRnxVCmA/hqdefault.jpg",
+                "width": 480,
+                "height": 360
+            },
+            "standard": {
+                "url": "https://i.ytimg.com/vi/krpcRnxVCmA/sddefault.jpg",
+                "width": 640,
+                "height": 480
+            },
+            "maxres": {
+                "url": "https://i.ytimg.com/vi/krpcRnxVCmA/maxresdefault.jpg",
+                "width": 1280,
+                "height": 720
+            }
+        },
+        "channelTitle": "DestroyerVevo",
+        "tags": [
+            "Destroyer",
+            "Times",
+            "Square",
+            "Merge",
+            "Alternative"
+        ],
+        "categoryId": "10",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": null,
+        "localized": {
+            "title": "Destroyer - Times Square",
+            "description": "From the album Poison Season, out August 28, 2015.\nVinyl / CD:  http://smarturl.it/poisonseason\nDownload:  http://smarturl.it/PoisonSeasonDL\n\nDan Bejar: vocals\nTed Bois: piano\nNicolas Bragg: lead guitar\nDavid Carswell: rhythm guitars\nJP Carter: trumpet\nJohn Collins: bass\nJoseph Shabason: saxophone\nJosh Wells: drums, congas, percussion\n\nmixed by David Carswell\n\ndirected and animated by Shayne Ehman\n\nfilm production assistants: Tony Romano, Zoe Gordon, Axel Ehman\n\nWe acknowledge the financial support of Canada\u2019s Private Radio Broadcasters and FACTOR.\n\nhttp://vevo.ly/UWEXhS"
+        },
+        "defaultAudioLanguage": null
+    },
+    "contentDetails": {
+        "duration": "PT4M21S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": true,
+        "regionRestriction": null,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": null
+    },
+    "status": {
+        "uploadStatus": "processed",
+        "failureReason": null,
+        "rejectionReason": null,
+        "privacyStatus": "public",
+        "publishAt": null,
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": null
+    },
+    "statistics": {
+        "viewCount": 369519,
+        "likeCount": 2780,
+        "dislikeCount": null,
+        "commentCount": 111
+    },
+    "topicDetails": {
+        "topicIds": null,
+        "relevantTopicIds": null,
+        "topicCategories": [
+            "https://en.wikipedia.org/wiki/Independent_music",
+            "https://en.wikipedia.org/wiki/Music"
+        ]
+    },
+    "player": {
+        "embedHtml": "<iframe width=\"480\" height=\"270\" src=\"//www.youtube.com/embed/krpcRnxVCmA\" frameborder=\"0\" allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share\" allowfullscreen></iframe>",
+        "embedHeight": null,
+        "embedWidth": null
+    },
+    "liveStreamingDetails": null
+}
+
+
