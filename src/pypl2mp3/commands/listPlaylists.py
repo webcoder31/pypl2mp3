@@ -18,7 +18,7 @@ import re
 from colorama import Fore, Back, Style
 
 # pypl2mp3 libs
-from pypl2mp3.libs.utils import CounterMaker, deterministicListSorter
+from pypl2mp3.libs.utils import ProgressCounter, get_deterministic_sort_key
 
 
 def listPlaylists(args):
@@ -26,19 +26,19 @@ def listPlaylists(args):
     List playlists
     """
     
-    repositoryPath = Path(args.repo)
+    repository_path = Path(args.repo)
     playlistPaths = [Path(path) for path in list(
-        filter(re.compile(r'^.*\[(.?[^\]]+)\]$').match, [str(dir) for dir in repositoryPath.glob(f'*/')]))]
-    playlistPaths.sort(key = deterministicListSorter)
+        filter(re.compile(r'^.*\[(.?[^\]]+)\]$').match, [str(dir) for dir in repository_path.glob(f'*/')]))]
+    playlistPaths.sort(key = get_deterministic_sort_key)
     playlistCount = len(playlistPaths)
     if playlistCount == 0:
         raise Exception(f'No playlist found in repository.')
     print(f'\n{Back.GREEN + Style.BRIGHT}Found {len(playlistPaths)} playlists in repository.{Style.RESET_ALL}')
-    counterMaker = CounterMaker(playlistCount)
+    progress_counter = ProgressCounter(playlistCount)
     playlistIndex = 0
     for playlistPath in playlistPaths:
         playlistIndex += 1
-        counter = counterMaker.format(playlistIndex)
+        counter = progress_counter.format(playlistIndex)
         allSongFiles = list(playlistPath.glob('*.mp3'))
         junkSongFiles = list(playlistPath.glob('* (JUNK).mp3'))
         print(f'\n{counter} {Fore.LIGHTYELLOW_EX}{playlistPath.name}{Fore.RESET}')

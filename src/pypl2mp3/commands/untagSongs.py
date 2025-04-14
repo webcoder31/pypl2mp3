@@ -17,9 +17,9 @@ from pathlib import Path
 from colorama import Fore, Style
 
 # pypl2mp3 libs
-from pypl2mp3.libs.repository import getSongFiles
-from pypl2mp3.libs.song import Song
-from pypl2mp3.libs.utils import CounterMaker, formatSongLabel
+from pypl2mp3.libs.repository import get_repository_song_files
+from pypl2mp3.libs.song import SongModel
+from pypl2mp3.libs.utils import ProgressCounter, format_song_display
 
 
 def untagSongs(args):
@@ -27,33 +27,33 @@ def untagSongs(args):
     Remove ID3 tags from songs
     """
     
-    repositoryPath = Path(args.repo)
+    repository_path = Path(args.repo)
     promptToConfirm = False
     promptToConfirm = args.prompt
     keywords = args.keywords
-    songFiles = getSongFiles(
-        repositoryPath,
+    songFiles = get_repository_song_files(
+        repository_path,
         keywords = keywords,
-        filterMatchThreshold = args.match,
-        playlistIdentifier = args.playlist,
-        displaySummary = True)
+        filter_match_threshold = args.match,
+        playlist_identifier = args.playlist,
+        display_summary = True)
     songCount = len(songFiles)
-    counterMaker = CounterMaker(songCount)
+    progress_counter = ProgressCounter(songCount)
     if not promptToConfirm and input(
         f'\n{Style.BRIGHT}{Fore.LIGHTBLUE_EX}This will untag all songs found. Continue {Style.RESET_ALL} '
         + f'({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? ') != 'yes':
             return
-    songIndex = 0
+    song_index = 0
     for songPathname in songFiles:
-        songIndex += 1
-        counter = counterMaker.format(songIndex)
-        song = Song(songPathname)
-        print(f'\n{formatSongLabel(counter, song)}  ' 
-            + f'{Fore.WHITE + Style.DIM}[https://youtu.be/{song.youtubeId}]')
+        song_index += 1
+        counter = progress_counter.format(song_index)
+        song = SongModel(songPathname)
+        print(f'\n{format_song_display(counter, song)}  ' 
+            + f'{Fore.WHITE + Style.DIM}[https://youtu.be/{song.youtube_id}]')
         if promptToConfirm and input(
             f'{Style.BRIGHT}{Fore.LIGHTBLUE_EX}Do you want to untag this song{Style.RESET_ALL} '
             + f'({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? ') != 'yes':
                 continue
-        song.resetState()
-        song.fixFilename()
+        song.reset_state()
+        song.fix_filename()
         print(f'Song untagged and renamed to: {Fore.LIGHTCYAN_EX}{song.filename}{Fore.RESET}')

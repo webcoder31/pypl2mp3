@@ -18,9 +18,9 @@ from colorama import Fore, Back, Style
 from pytubefix import YouTube
 
 # pypl2mp3 libs
-from pypl2mp3.libs.repository import getSongFiles
-from pypl2mp3.libs.song import Song
-from pypl2mp3.libs.utils import LabelMaker, CounterMaker, formatSongLabel
+from pypl2mp3.libs.repository import get_repository_song_files
+from pypl2mp3.libs.song import SongModel
+from pypl2mp3.libs.utils import LabelFormatter, ProgressCounter, format_song_display
 
 
 async def tagJunkSongs(args):
@@ -28,17 +28,17 @@ async def tagJunkSongs(args):
     Set ID3 tags to junk songs
     """
     
-    repositoryPath = Path(args.repo)
+    repository_path = Path(args.repo)
     promptToConfirm = False
     promptToConfirm = args.prompt
-    shazamMatchThreshold = args.thresh
-    junkSongFiles = getSongFiles(
-        repositoryPath,
+    shazam_match_threshold = args.thresh
+    junkSongFiles = get_repository_song_files(
+        repository_path,
         keywords = args.keywords,
-        filterMatchThreshold = args.match,
-        junkOnly = True,
-        playlistIdentifier = args.playlist,
-        displaySummary = True)
+        filter_match_threshold = args.match,
+        junk_only = True,
+        playlist_identifier = args.playlist,
+        display_summary = True)
     if len(junkSongFiles) == 0:
         print(f'\n{Fore.LIGHTYELLOW_EX}No junk song found.{Fore.RESET}')
         return
@@ -50,34 +50,34 @@ async def tagJunkSongs(args):
             return
     unjunkSongReport = []
     junkSongReport = []
-    counterMaker = CounterMaker(songCount)
-    labelMaker = LabelMaker(25)
-    songIndex = 0
+    progress_counter = ProgressCounter(songCount)
+    label_formatter = LabelFormatter(25)
+    song_index = 0
 
     for songPathname in junkSongFiles:
-        songIndex += 1
-        counter = counterMaker.format(songIndex)
-        song = Song(songPathname)
-        songName = song.labelFromFilename
-        songName = f'{song.artist} - {song.title}'
-        print(f'\n{formatSongLabel(counter, song)}  ' 
-            + f'{Fore.WHITE + Style.DIM}[https://youtu.be/{song.youtubeId}]')
-        if song.shouldBeTagged or not song.hasCoverArt:
+        song_index += 1
+        counter = progress_counter.format(song_index)
+        song = SongModel(songPathname)
+        song_name = song.label_from_filename
+        song_name = f'{song.artist} - {song.title}'
+        print(f'\n{format_song_display(counter, song)}  ' 
+            + f'{Fore.WHITE + Style.DIM}[https://youtu.be/{song.youtube_id}]')
+        if song.should_be_tagged or not song.has_cover_art:
             print(f'{Fore.MAGENTA}Song is not tagged or is missing cover art and should be YouTube-ed first before being fixed.{Fore.RESET}')
-        elif song.shouldBeShazamed:
+        elif song.should_be_shazamed:
             print(f'{Fore.MAGENTA}Song is tagged and has cover art but it should be Shazam-ed to get trusted ones.{Fore.RESET}')
-        elif song.shouldBeRenamed:
+        elif song.should_be_renamed:
             print(f'{Fore.MAGENTA}Song is Shazam-ed and tagged but it should be renamed.{Fore.RESET}')
             if promptToConfirm:
-                print(labelMaker.format('Current filename:') + f'{Fore.CYAN}{song.filename}{Fore.RESET}')
-                print(labelMaker.format('Expected filename:') + f'{Fore.GREEN}{song.expectedFilename}{Fore.RESET}')
+                print(label_formatter.format('Current filename:') + f'{Fore.CYAN}{song.filename}{Fore.RESET}')
+                print(label_formatter.format('Expected filename:') + f'{Fore.GREEN}{song.expected_filename}{Fore.RESET}')
         else:
             print(f'{Fore.LIGHTYELLOW_EX}Song is Shazam-ed, tagged and named accordingly but still marked as "JUNK".{Fore.RESET}')
             if not promptToConfirm:
                 print(f'{Fore.LIGHTYELLOW_EX}You should fix it using "--prompt" option{Fore.RESET}')
                 junkSongReport.append({
-                    'songName': songName,
-                    'youtubeId': song.youtubeId,
+                    'song_name': song_name,
+                    'youtube_id': song.youtube_id,
                     'filename': song.filename,
                     'reason': f'Ignored - Should be unjunked using "--prompt" option'})
                 continue
@@ -90,119 +90,119 @@ async def tagJunkSongs(args):
             elif response != 'yes':
                 continue
             junkSongReport.append({
-                'songName': songName, 
-                'youtubeId': song.youtubeId, 
+                'song_name': song_name, 
+                'youtube_id': song.youtube_id, 
                 'filename': song.filename, 
                 'reason': f'Song tagging aborted by user'})
-        if (((song.shouldBeTagged or not song.hasCoverArt) and not promptToConfirm)
-            or ((song.shouldBeTagged or not song.hasCoverArt) and promptToConfirm and input(
+        if (((song.should_be_tagged or not song.has_cover_art) and not promptToConfirm)
+            or ((song.should_be_tagged or not song.has_cover_art) and promptToConfirm and input(
                 f'{Style.BRIGHT}{Fore.LIGHTBLUE_EX}Do you want to load song missing information from YouTube first{Style.RESET_ALL} ' 
                 + f'({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? ') == 'yes')):
             print(f'YouTube-ing junk song: Please, wait... ', end = '', flush = True)
             try:
-                youtubeSongInfo = YouTube(f'https://youtube.com/watch?v={song.youtubeId}', client='WEB')
-                song.updateState(
+                youtubeSongInfo = YouTube(f'https://youtube.com/watch?v={song.youtube_id}', client='WEB')
+                song.update_state(
                     artist=youtubeSongInfo.author,
                     title = youtubeSongInfo.title,
-                    coverArtUrl = youtubeSongInfo.thumbnail_url)
+                    cover_art_url = youtubeSongInfo.thumbnail_url)
             except:
                 print('\x1b[K', end = '\r')
-                print(labelMaker.format('YouTube-ing junk song:') 
+                print(label_formatter.format('YouTube-ing junk song:') 
                     + f'{Fore.MAGENTA}ERROR! Failed to retrieve song information{Fore.RESET} ' 
                     + f'{Fore.BLUE}(IGNORING - Will try with Shazam anyway).{Fore.RESET}')
             print('\x1b[K', end = '\r')
-            print(labelMaker.format('YouTube-ing junk song:') 
+            print(label_formatter.format('YouTube-ing junk song:') 
                 + f'Artist: {Fore.LIGHTCYAN_EX}{song.artist}{Fore.RESET}, ' 
                 + f'Title: {Fore.LIGHTCYAN_EX}{song.title}{Fore.RESET}, ' 
-                + f'Cover art URL: {Fore.LIGHTCYAN_EX}{("None", "Available")[song.coverArtUrl is not None]}{Fore.RESET}')
+                + f'Cover art URL: {Fore.LIGHTCYAN_EX}{("None", "Available")[song.cover_art_url is not None]}{Fore.RESET}')
             if not promptToConfirm:
-                if song.hasCoverArt:
-                    print(labelMaker.format('Updating MP3 tags:') 
+                if song.has_cover_art:
+                    print(label_formatter.format('Updating MP3 tags:') 
                         + f'YouTube cover art and ID3 tags added to file.')
                 else:
-                    print(labelMaker.format('Updating MP3 tags:') 
+                    print(label_formatter.format('Updating MP3 tags:') 
                         + f'{Fore.MAGENTA}WARNING! YouTube ID3 tags added to file but not cover art{Fore.RESET}')
                 try:
-                    song.fixFilename(markAsJunk = (song.shazamMatchLevel or 0) < shazamMatchThreshold)
-                    print(labelMaker.format('Junk song renamed to:') 
+                    song.fix_filename(mark_as_junk = (song.shazam_match_level or 0) < shazam_match_threshold)
+                    print(label_formatter.format('Junk song renamed to:') 
                         + f'{Fore.CYAN}{song.filename}{Fore.RESET}')
                 except:
-                    print(labelMaker.format('Junk song renamed to:') 
-                        + f'{Fore.MAGENTA}ERROR! Failed to rename junk song to: {song.expectedJunkFilename}{Fore.RESET} ' 
+                    print(label_formatter.format('Junk song renamed to:') 
+                        + f'{Fore.MAGENTA}ERROR! Failed to rename junk song to: {song.expected_junk_filename}{Fore.RESET} ' 
                         + f'{Fore.BLUE}(IGNORING - Will try with Shazam anyway).{Fore.RESET}')
         print(f'Shazam-ing junk song: Please, wait... ', end = '', flush = True)
         try :
-            await song.shazamSong(shazamMatchThreshold = shazamMatchThreshold)
+            await song.shazam_song(shazam_match_threshold = shazam_match_threshold)
         except Exception as error:
             if promptToConfirm:
                 print('\x1b[K', end = '\r')
-                print(labelMaker.format('Shazam-ing junk song:') 
+                print(label_formatter.format('Shazam-ing junk song:') 
                     + f'{Fore.MAGENTA}WARNING! An exception ({type(error).__name__}) ' 
                     + f'occurs while Shazam-ing song.{Fore.RESET}')
             else:
                 print(f'\n{Fore.RED}ERROR! An exception occurs while Shazam-ing song:', 
                     type(error).__name__, '-', error, f'{Fore.RESET}')
                 junkSongReport.append({
-                    'songName': songName,
-                    'youtubeId': song.youtubeId,
+                    'song_name': song_name,
+                    'youtube_id': song.youtube_id,
                     'filename': song.filename,
                     'reason': f'Failed to shazam song: {type(error).__name__} - {error}'})
                 continue
-        if not song.shouldBeShazamed:
+        if not song.should_be_shazamed:
             print('\x1b[K', end = '\r')
-            print(labelMaker.format('Shazam-ing junk song:') 
-                + f'Artist: {Fore.LIGHTCYAN_EX}{song.shazamArtist}{Fore.RESET}, ' 
-                + f'Title: {Fore.LIGHTCYAN_EX}{song.shazamTitle}{Fore.RESET}, ' 
-                + f'Match: {Fore.LIGHTCYAN_EX}{song.shazamMatchLevel}%{Fore.RESET}')
-            if shazamMatchThreshold > 0 and song.shazamMatchLevel > shazamMatchThreshold:
+            print(label_formatter.format('Shazam-ing junk song:') 
+                + f'Artist: {Fore.LIGHTCYAN_EX}{song.shazam_artist}{Fore.RESET}, ' 
+                + f'Title: {Fore.LIGHTCYAN_EX}{song.shazam_title}{Fore.RESET}, ' 
+                + f'Match: {Fore.LIGHTCYAN_EX}{song.shazam_match_level}%{Fore.RESET}')
+            if shazam_match_threshold > 0 and song.shazam_match_level > shazam_match_threshold:
                 if promptToConfirm:
-                    print(labelMaker.format('Shazam match result:') 
-                        + f'{Fore.CYAN}Match level is over threshold ({song.shazamMatchLevel}% > {shazamMatchThreshold}%). ' 
+                    print(label_formatter.format('Shazam match result:') 
+                        + f'{Fore.CYAN}Match level is over threshold ({song.shazam_match_level}% > {shazam_match_threshold}%). ' 
                         + f'You can trust default values that will be purposed bellow.{Fore.RESET}')
                 else:
-                    if song.hasCoverArt:
-                        print(labelMaker.format('Updating MP3 tags:') 
+                    if song.has_cover_art:
+                        print(label_formatter.format('Updating MP3 tags:') 
                             + f'Shazam cover art and ID3 tags added to file.')
                     else:
-                        print(labelMaker.format('Updating MP3 tags:') 
+                        print(label_formatter.format('Updating MP3 tags:') 
                             + f'{Fore.MAGENTA}WARNING! Shazam ID3 tags added to file but not cover art{Fore.RESET}')
                     try:
-                        song.fixFilename(markAsJunk = (song.shazamMatchLevel or 0) < shazamMatchThreshold)
-                        print(labelMaker.format('Song successfully tagged and renamed to:') + f'{Fore.LIGHTYELLOW_EX}{song.filename}{Fore.RESET}')
+                        song.fix_filename(mark_as_junk = (song.shazam_match_level or 0) < shazam_match_threshold)
+                        print(label_formatter.format('Song successfully tagged and renamed to:') + f'{Fore.LIGHTYELLOW_EX}{song.filename}{Fore.RESET}')
                         unjunkSongReport.append({
-                            'songName': songName, 
-                            'youtubeId': song.youtubeId, 
+                            'song_name': song_name, 
+                            'youtube_id': song.youtube_id, 
                             'filename': song.filename, 
-                            'detail': f'Shazam match level OK ({song.shazamMatchLevel}%)'})
+                            'detail': f'Shazam match level OK ({song.shazam_match_level}%)'})
                     except:
-                        print(f'{Fore.RED}ERROR! Failed to rename junk song to: {song.expectedFilename}{Fore.RESET}')
+                        print(f'{Fore.RED}ERROR! Failed to rename junk song to: {song.expected_filename}{Fore.RESET}')
                         junkSongReport.append({
-                            'songName': songName, 
-                            'youtubeId': song.youtubeId, 
+                            'song_name': song_name, 
+                            'youtube_id': song.youtube_id, 
                             'filename': song.filename, 
-                            'reason': f'Failed to rename junk song to "{song.expectedFilename}"'})
+                            'reason': f'Failed to rename junk song to "{song.expected_filename}"'})
                         continue
-            elif shazamMatchThreshold > 0 and song.shazamMatchLevel < shazamMatchThreshold:
+            elif shazam_match_threshold > 0 and song.shazam_match_level < shazam_match_threshold:
                 if promptToConfirm:
-                    print(labelMaker.format('Shazam match result:') 
-                        + f'{Fore.MAGENTA}WARNING! Low match level ({song.shazamMatchLevel}% < {shazamMatchThreshold}%).{Fore.RESET}')
+                    print(label_formatter.format('Shazam match result:') 
+                        + f'{Fore.MAGENTA}WARNING! Low match level ({song.shazam_match_level}% < {shazam_match_threshold}%).{Fore.RESET}')
                 else:
-                    print(f'{Fore.MAGENTA}WARNING! Match level ({song.shazamMatchLevel}%) is too low to fix junk song.{Fore.RESET}')
+                    print(f'{Fore.MAGENTA}WARNING! Match level ({song.shazam_match_level}%) is too low to fix junk song.{Fore.RESET}')
                     junkSongReport.append({
-                        'songName': songName, 
-                        'youtubeId': song.youtubeId, 
+                        'song_name': song_name, 
+                        'youtube_id': song.youtube_id, 
                         'filename': song.filename, 
-                        'reason': f'Match level ({song.shazamMatchLevel}%) is too low to fix junk song'})
+                        'reason': f'Match level ({song.shazam_match_level}%) is too low to fix junk song'})
             else:
                 print('\x1b[K', end = '\r')
-                print(labelMaker.format('Shazam-ing junk song:') 
+                print(label_formatter.format('Shazam-ing junk song:') 
                     + f'{Fore.MAGENTA}No match found{Fore.RESET} {Fore.BLUE}(this may occur with long track).{Fore.RESET}')
                 if not promptToConfirm:
                     print(f'{Fore.MAGENTA}WARNING! Shazam did not find any match to fix this song. ' 
                         + f'Fix it using "--prompt" option.{Fore.RESET}')
                     junkSongReport.append({
-                        'songName': songName, 
-                        'youtubeId': song.youtubeId, 
+                        'song_name': song_name, 
+                        'youtube_id': song.youtube_id, 
                         'filename': song.filename, 
                         'reason': 'Shazam did not find any match for song'})
         if not promptToConfirm:
@@ -218,7 +218,7 @@ async def tagJunkSongs(args):
                     continue
                 else:
                     print('\033[1A\x1b[K', end = '\r')
-                    print(labelMaker.format('   ⇨ Artist:') + f'{Fore.LIGHTYELLOW_EX}{artistInput}{Fore.RESET}')
+                    print(label_formatter.format('   ⇨ Artist:') + f'{Fore.LIGHTYELLOW_EX}{artistInput}{Fore.RESET}')
                     break
             while True:
                 titleInput = (
@@ -229,75 +229,75 @@ async def tagJunkSongs(args):
                     continue
                 else:
                     print('\033[1A\x1b[K', end = '\r')
-                    print(labelMaker.format('   ⇨ Title:') + f'{Fore.LIGHTYELLOW_EX}{titleInput}{Fore.RESET}')
+                    print(label_formatter.format('   ⇨ Title:') + f'{Fore.LIGHTYELLOW_EX}{titleInput}{Fore.RESET}')
                     break
             while True:
                 tip = (
                     'None - Type ENTER to leave blank cover art or an URL to set one', 
-                    'Available - Type ENTER to keep existing cover art or an URL to chnge it')[song.coverArtUrl is not None]
-                coverArtUrlInput = (
+                    'Available - Type ENTER to keep existing cover art or an URL to chnge it')[song.cover_art_url is not None]
+                cover_art_urlInput = (
                     input(f'{Style.BRIGHT}{Fore.LIGHTBLUE_EX}   ⇨ Cover URL [default: {Fore.CYAN}%s{Style.RESET_ALL}]: ' % (tip)) 
-                    or (song.coverArtUrl or 'None')).strip()
-                if coverArtUrlInput == '':
+                    or (song.cover_art_url or 'None')).strip()
+                if cover_art_urlInput == '':
                     print('\033[1A\x1b[K', end = '\r')
                     continue
                 else:
-                    choice = (None, 'Keep existing cover art')[coverArtUrlInput == song.coverArtUrl] or coverArtUrlInput
+                    choice = (None, 'Keep existing cover art')[cover_art_urlInput == song.cover_art_url] or cover_art_urlInput
                     print('\033[1A\x1b[K', end = '\r')
-                    print(labelMaker.format('   ⇨ Cover URL:') 
+                    print(label_formatter.format('   ⇨ Cover URL:') 
                         + f'{Fore.LIGHTYELLOW_EX}{choice}{Fore.RESET}')
-                    song.coverArtUrl = (
-                        (None, coverArtUrlInput)[coverArtUrlInput == song.coverArtUrl] 
-                        or (None, coverArtUrlInput)[coverArtUrlInput != 'None'])
+                    song.cover_art_url = (
+                        (None, cover_art_urlInput)[cover_art_urlInput == song.cover_art_url] 
+                        or (None, cover_art_urlInput)[cover_art_urlInput != 'None'])
                     break
             saveTagsInput = input(
                 f'{Style.BRIGHT}{Fore.LIGHTBLUE_EX}Do you want to save ID3 tags and cover art{Style.RESET_ALL} ' 
                 + f'({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}/{Fore.CYAN}retry{Fore.RESET}) ? ')
             if saveTagsInput == 'yes':
                 try:
-                    song.updateState(
+                    song.update_state(
                         artist = artistInput,
                         title = titleInput,
-                        coverArtUrl = coverArtUrlInput
+                        cover_art_url = cover_art_urlInput
                     )
-                    if song.hasCoverArt:
-                        print(labelMaker.format('Updating MP3 tags:') 
+                    if song.has_cover_art:
+                        print(label_formatter.format('Updating MP3 tags:') 
                             + f'Cover art and ID3 tags added to file.')
                     else:
-                        print(labelMaker.format('Updating MP3 tags') 
+                        print(label_formatter.format('Updating MP3 tags') 
                             + f'{Fore.MAGENTA}WARNING! ID3 tags added to file but not cover art{Fore.RESET}')
                 except:
                     print(f'{Fore.RED}ERROR! Failed to save ID3 tags and cover art.{Fore.RESET}')
                     continue
-                songName = f'{song.artist} - {song.title} [{song.youtubeId}]'
-                print(labelMaker.format('New song name from tags:') 
-                    + f'{Fore.CYAN + Style.BRIGHT}{songName}{Fore.RESET + Style.RESET_ALL}')
+                song_name = f'{song.artist} - {song.title} [{song.youtube_id}]'
+                print(label_formatter.format('New song name from tags:') 
+                    + f'{Fore.CYAN + Style.BRIGHT}{song_name}{Fore.RESET + Style.RESET_ALL}')
                 if input(
                     f'{Style.BRIGHT}{Fore.LIGHTBLUE_EX}Do you want to fix junk song filename{Style.RESET_ALL} ' 
                     + f'({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? ') == 'yes':
                     try:
-                        song.fixFilename(markAsJunk = False)
+                        song.fix_filename(mark_as_junk = False)
                         print(f'{Fore.LIGHTYELLOW_EX}Junk song successfully renamed to: {song.filename}{Fore.RESET}')
                         unjunkSongReport.append({
-                            'youtubeId': song.youtubeId, 
-                            'songName': songName, 
-                            'detail': f'Shazam match level OK ({song.shazamMatchLevel}%)',
+                            'youtube_id': song.youtube_id, 
+                            'song_name': song_name, 
+                            'detail': f'Shazam match level OK ({song.shazam_match_level}%)',
                             'filename': song.filename})
                     except:
-                        print(f'{Fore.RED}ERROR! Failed to rename junk song to: {song.expectedFilename}{Fore.RESET}')
+                        print(f'{Fore.RED}ERROR! Failed to rename junk song to: {song.expected_filename}{Fore.RESET}')
                         junkSongReport.append({
-                            'songName': songName, 
-                            'youtubeId': song.youtubeId, 
+                            'song_name': song_name, 
+                            'youtube_id': song.youtube_id, 
                             'filename': song.filename, 
-                            'reason': f'Failed to rename junk song to "{song.expectedFilename}"'})
+                            'reason': f'Failed to rename junk song to "{song.expected_filename}"'})
                         continue
                 break
             elif saveTagsInput == 'retry':
                 continue
             else:
                 junkSongReport.append({
-                    'songName': songName, 
-                    'youtubeId': song.youtubeId, 
+                    'song_name': song_name, 
+                    'youtube_id': song.youtube_id, 
                     'filename': song.filename, 
                     'reason': f'Song tagging aborted by user'})
                 break
@@ -314,15 +314,15 @@ async def tagJunkSongs(args):
     if len(unjunkSongReport) > 0:
         print(f'\n\n{Back.YELLOW + Fore.WHITE} Fixed junk song summary {Style.RESET_ALL}')
         for reportItem in unjunkSongReport:
-            print(f'\n{Fore.WHITE + Style.DIM}- YouTube ID: {Style.RESET_ALL}{Fore.WHITE}{reportItem["youtubeId"]}{Fore.RESET}')
-            print(f'{Fore.WHITE + Style.DIM}  Song name:  {Style.RESET_ALL}{Fore.CYAN}{reportItem["songName"]}{Fore.RESET}')
+            print(f'\n{Fore.WHITE + Style.DIM}- YouTube ID: {Style.RESET_ALL}{Fore.WHITE}{reportItem["youtube_id"]}{Fore.RESET}')
+            print(f'{Fore.WHITE + Style.DIM}  Song name:  {Style.RESET_ALL}{Fore.CYAN}{reportItem["song_name"]}{Fore.RESET}')
             print(f'{Fore.WHITE + Style.DIM}  Filename:   {Style.RESET_ALL}{Fore.CYAN}{reportItem["filename"]}{Fore.RESET}')
             print(f'{Fore.WHITE + Style.DIM}  Detail:     {Style.RESET_ALL}{Fore.LIGHTYELLOW_EX}{reportItem["detail"]}{Fore.RESET}')
 
     if len(junkSongReport) > 0:
         print(f'\n\n{Back.MAGENTA + Fore.WHITE} Unfixed junk songs summary {Style.RESET_ALL}')
         for reportItem in junkSongReport:
-            print(f'\n{Fore.WHITE + Style.DIM}- YouTube ID: {Style.RESET_ALL}{Fore.WHITE}{reportItem["youtubeId"]}{Fore.RESET}')
-            print(f'{Fore.WHITE + Style.DIM}  Song name:  {Style.RESET_ALL}{Fore.CYAN}{reportItem["songName"]}{Fore.RESET}')
+            print(f'\n{Fore.WHITE + Style.DIM}- YouTube ID: {Style.RESET_ALL}{Fore.WHITE}{reportItem["youtube_id"]}{Fore.RESET}')
+            print(f'{Fore.WHITE + Style.DIM}  Song name:  {Style.RESET_ALL}{Fore.CYAN}{reportItem["song_name"]}{Fore.RESET}')
             print(f'{Fore.WHITE + Style.DIM}  Filename:   {Style.RESET_ALL}{Fore.CYAN}{reportItem["filename"]}{Fore.RESET}')
             print(f'{Fore.WHITE + Style.DIM}  Reason:     {Style.RESET_ALL}{Fore.MAGENTA}{reportItem["reason"]}{Fore.RESET}')

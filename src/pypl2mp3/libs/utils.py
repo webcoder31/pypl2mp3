@@ -3,16 +3,22 @@
 """
 This file is part of PYPL2MP3 software, 
 a YouTube playlist MP3 converter that can also shazam, tag and play songs.
+PYPL2MP3: YouTube playlist MP3 converter with Shazam integration and tagging capabilities.
 
 @author    Thierry Thiers <webcoder31@gmail.com>
 @copyright 2024 © Thierry Thiers <webcoder31@gmail.com>
 @license   http://www.cecill.info  CeCILL-C License
 @link      https://github.com/webcoder31/pypl2mp3
+
+This module provides utility functions for YouTube ID extraction, match score calculation,
+string matching and formatting operations.
 """
 
 # Python core modules
+from dataclasses import dataclass
 import math
 import re
+from typing import Optional
 
 # Third party packages
 from colorama import Fore, Style
@@ -20,133 +26,164 @@ from slugify import slugify
 from thefuzz import fuzz
 
 
-def extractYoutubeIdFromFilename(filename):
-    """
-    Extract YouTube ID located between the last brackets of the provided filename
-    """
-
-    match = re.match(r'^.*\[(?P<youtubeId>[^\]]+)\][^\]]*$', str(filename))
-    if match:
-        return match.group('youtubeId')
-    return None
-
-
-def extractYoutubeIdFromUrl(url):
-    """
-    Extract YouTube ID from the provided YouTube URL (e.g., https://www.youtube.com/watch?v=...)
-    The ID is the part after the last '=' character.
-    """
-
-    match = re.match(r'^.*=(?P<youtubeId>.+)$', str(url))
-    if match:
-        return match.group('youtubeId')
-    return None
-
-
-def fuzzyMatchLevel(artist, title, keywords):
-    """
-    Computes fuzzy match level of song artist name and song title against keywords.
-    The higher the score, the better the match.
-    """
+def extract_youtube_id_from_filename(filename: str) -> Optional[str]:
+    """Extract YouTube ID from a filename's last brackets.
     
+    Args:
+        filename: String containing YouTube ID in brackets
+        
+    Returns:
+        YouTube ID if found, None otherwise
+    """
+    pattern = r'^.*\[(?P<youtube_id>[^\]]+)\][^\]]*$'
+    if match := re.match(pattern, str(filename)):
+        return match.group('youtube_id')
+    return None
+
+
+def extract_youtube_id_from_url(url: str) -> Optional[str]:
+    """Extract YouTube ID from a YouTube URL.
+    
+    Args:
+        url: YouTube URL containing video ID after '='
+        
+    Returns:
+        YouTube ID if found, None otherwise
+    """
+    pattern = r'^.*=(?P<youtube_id>.+)$'
+    if match := re.match(pattern, str(url)):
+        return match.group('youtube_id')
+    return None
+
+
+def calculate_fuzzy_match_score(artist: str, title: str, keywords: str) -> float:
+    """Calculate similarity score between song details and search keywords.
+    
+    Args:
+        artist: Song artist name
+        title: Song title
+        keywords: Space-separated search terms
+        
+    Returns:
+        Match score (0-100), higher means better match
+    """
     if not keywords:
-        return 100  # Assume perfect match if no filter
-    score = 0
+        return 100.0
+
+    song_name = f'{artist.lower()} {title.lower()}'.strip()
+    keyword_list = keywords.lower().split()
+    
+    score = 0.0
     penalty = 0
-    songName = f'{artist.lower()} {title.lower()}'.strip()
-    keywordList = keywords.lower().split()
-    stackedKeywords = ''
-    weight = len(keywordList) + 1
-    weightSum = 0
-    for keyword in keywordList:
-        stackedKeywords += f' {keyword}'.strip()
-        weight -= 1
-        weightSum += weight
-        if keyword in songName:
-            score += 100 * weight  # Perfect match for exact keyword presence
+    stacked_keywords = ''
+    weight = len(keyword_list)
+    weight_sum = sum(range(1, weight + 1))
+    
+    for keyword in keyword_list:
+        stacked_keywords = f'{stacked_keywords} {keyword}'.strip()
+        
+        if keyword in song_name:
+            score += 100 * weight
         else:
-            fuzzy_score = sum([  # Fuzzy match score for each stacked keyword combination
-                1 * fuzz.WRatio(stackedKeywords, artist.lower()), 
-                1 * fuzz.WRatio(stackedKeywords, title.lower()),
-                3 * fuzz.WRatio(stackedKeywords, songName),
-            ]) / 5
-            if fuzzy_score < 100 - 10 * len(keywordList):
-                penalty += weight  # Apply penalty for missing important words 
+            fuzzy_score = (
+                fuzz.WRatio(stacked_keywords, artist.lower()) +
+                fuzz.WRatio(stacked_keywords, title.lower()) +
+                3 * fuzz.WRatio(stacked_keywords, song_name)
+            ) / 5
+            
+            if fuzzy_score < 100 - 10 * len(keyword_list):
+                penalty += weight
             score += fuzzy_score * weight
-    # Decrease match level according to total weight of keywords (less keywords ==> more selective) 
-    # and apply possible penalty to reduce rank
-    return max((score / weightSum) - (50 * math.exp(-(math.log(2) / 3) * weightSum)) - (penalty * 10), 0)
-
-
-def deterministicListSorter(string):
-    """
-    Function used by sort() method of lists to 
-    perform deterministic case insensitive sorting
-    """
+            
+        weight -= 1
     
-    return slugify(str(string)).casefold(), str(string)
-
-
-def formatSongLabel(counter, song):
-    """
-    Format a song label
-    """
+    severity_factor = 50 * math.exp(-(math.log(2) / 3) * weight_sum)
+    final_score = max((score / weight_sum) - severity_factor - (penalty * 10), 0)
     
-    return f'{counter}  ' \
-        + f'{Fore.WHITE}{song.duration}  ' \
-        + f'{Fore.LIGHTCYAN_EX + Style.BRIGHT}{song.artist}  ' \
-        + f'{Fore.LIGHTYELLOW_EX}{song.title}{Fore.MAGENTA}' \
-        + f'{("", " (JUNK)")[song.hasJunkFilename]}{Fore.RESET + Style.RESET_ALL}'
+    return final_score
 
 
-# Class that formats labels
-class LabelMaker():
-    """
-    Utility class to format a label 
-    """
-
-    def __init__(self, tabSize):
-        """
-        Returns a LabelMaker instance
-        """
+def get_deterministic_sort_key(text: str) -> tuple[str, str]:
+    """Create a deterministic sort key for case-insensitive sorting.
+    
+    Args:
+        text: Text to create sort key from
         
-        self.tabSize = tabSize
-
-    def format(self, label):
-        """
-        Format a text label
-        """
-        
-        return f'{Fore.WHITE + Style.DIM}{label.ljust(self.tabSize)} {Style.RESET_ALL}'
-    
-
-class CounterMaker():
+    Returns:
+        Tuple of (normalized text, original text)
     """
-    Utility class to format a counter
+    return slugify(str(text)).casefold(), str(text)
+
+
+def format_song_display(counter: int, song) -> str:
+    """Format song information for display.
+    
+    Args:
+        counter: Song number in list
+        song: Song object with artist, title, duration attributes
+        
+    Returns:
+        Formatted string with song details
     """
+    junk_indicator = " (JUNK)" if song.has_junk_filename else ""
     
-    def __init__(self, totalCount):
-        """
-        Returns a CounterMaker instance
-        """
-        
-        self.totalCount = totalCount
-        self.numberPadding = max(2, len(str(totalCount)))
-        self.padSize = int(self.numberPadding * 2 + 1)
+    return (
+        f"{counter}  "
+        f"{Fore.WHITE}{song.duration}  "
+        f"{Fore.LIGHTCYAN_EX}{Style.BRIGHT}{song.artist}  "
+        f"{Fore.LIGHTYELLOW_EX}{song.title}{Fore.MAGENTA}"
+        f"{junk_indicator}{Fore.RESET}{Style.RESET_ALL}"
+    )
+
+
+@dataclass
+class LabelFormatter:
+    """Utility class for formatting text labels with consistent padding."""
     
-    def format(self, index):
-        """
-        Format a counter
-        """
-        
-        return f'{Fore.LIGHTGREEN_EX}{str(index).rjust(self.numberPadding, "0")}' \
-               + f'{Fore.WHITE + Style.DIM}/{Style.RESET_ALL}' \
-               + f'{Fore.LIGHTGREEN_EX}{str(self.totalCount).rjust(self.numberPadding, "0")}{Style.RESET_ALL}'
+    tab_size: int
     
-    def placeholder(self, text = ''):
-        """
-        Return blank string (spaces) or the given text, 
-        truncated if required, as a placeholder for a counter
-        """
+    def format(self, label: str) -> str:
+        """Format a label with consistent padding and styling.
         
-        return f'{Fore.LIGHTGREEN_EX}{text[:self.padSize].ljust(self.padSize, " ")}{Style.RESET_ALL}'
+        Args:
+            label: Label text to format
+        Returns:
+            Formatted label string
+        """
+        return f"{Fore.WHITE}{Style.DIM}{label.ljust(self.tab_size)} {Style.RESET_ALL}"
+
+
+@dataclass
+class ProgressCounter:
+    """Utility class for formatting progress counters."""
+    
+    total_count: int
+    
+    def __post_init__(self):
+        self.number_width = max(2, len(str(self.total_count)))
+        self.pad_size = self.number_width * 2 + 1
+    
+    def format(self, current: int) -> str:
+        """Format a progress counter (e.g., '01/10').
+        
+        Args:
+            current: Current count
+        Returns:
+            Formatted progress counter string
+        """
+        return (
+            f"{Fore.LIGHTGREEN_EX}{str(current).rjust(self.number_width, '0')}"
+            f"{Fore.WHITE}{Style.DIM}/{Style.RESET_ALL}"
+            f"{Fore.LIGHTGREEN_EX}{str(self.total_count).rjust(self.number_width, '0')}"
+            f"{Style.RESET_ALL}"
+        )
+    
+    def placeholder(self, text: str = '') -> str:
+        """Create a placeholder of appropriate width.
+        
+        Args:
+            text: Text to display in the placeholder
+        Returns:
+            Formatted placeholder string
+        """
+        return f"{Fore.LIGHTGREEN_EX}{text[:self.pad_size].ljust(self.pad_size)}{Style.RESET_ALL}"

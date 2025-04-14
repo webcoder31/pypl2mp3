@@ -26,20 +26,20 @@ import pygame
 from sshkeyboard import listen_keyboard, stop_listening
 
 # pypl2mp3 libs
-from pypl2mp3.libs.repository import getSongFiles
-from pypl2mp3.libs.song import Song
-from pypl2mp3.libs.utils import LabelMaker, CounterMaker, formatSongLabel
+from pypl2mp3.libs.repository import get_repository_song_files
+from pypl2mp3.libs.song import SongModel
+from pypl2mp3.libs.utils import LabelFormatter, ProgressCounter, format_song_display
 
 # Global variables
 songFiles = None
 songCount = 0
-songIndex = 0
+song_index = 0
 songUrl = None
 songPlayerThread = None
 isSongPlayerRunning = False
 isSongPlayerPaused = False
 playDirection = 'forward'
-counterMaker = None
+progress_counter = None
 verbose = False
 
 
@@ -48,46 +48,46 @@ def runSongPlayer():
     Run song player
     """
 
-    global songIndex
+    global song_index
     global songUrl
     global isSongPlayerRunning
 
     while True:
         pygame.mixer.music.stop() # Stop music in case is playing something
         step = (-1, 1)[playDirection == 'forward']
-        songIndex += step
-        songIndex = (songIndex + songCount) % (2 * songCount) - songCount
-        if songIndex < 0:
-            songIndex = songCount + songIndex
-        songFile = songFiles[songIndex]
-        counter = counterMaker.format(songIndex)
-        song = Song(songFile)
-        songUrl = f'https://youtu.be/{song.youtubeId}'
+        song_index += step
+        song_index = (song_index + songCount) % (2 * songCount) - songCount
+        if song_index < 0:
+            song_index = songCount + song_index
+        songFile = songFiles[song_index]
+        counter = progress_counter.format(song_index)
+        song = SongModel(songFile)
+        songUrl = f'https://youtu.be/{song.youtube_id}'
         print('\033[2K\033[1G', end = '\r') # Erase and go to beginning of line
-        print(formatSongLabel(counter, song))
+        print(format_song_display(counter, song))
         if verbose:
-            labelMaker = LabelMaker(9)
-            print(counterMaker.placeholder() + '  '
-                + labelMaker.format('Playlist')
+            label_formatter = LabelFormatter(9)
+            print(progress_counter.placeholder() + '  '
+                + label_formatter.format('Playlist')
                 + f'{Fore.LIGHTBLUE_EX}{song.playlist}{Fore.RESET}')
-            print(counterMaker.placeholder() + '  '
-                + labelMaker.format('Filename')
+            print(progress_counter.placeholder() + '  '
+                + label_formatter.format('Filename')
                 + f'{Fore.LIGHTBLUE_EX}{song.filename}{Fore.RESET}')
-            print(counterMaker.placeholder() + '  '
-                + labelMaker.format('Link')
-                + f'{Fore.LIGHTBLUE_EX}https://youtu.be/{song.youtubeId}{Fore.RESET}')
-        nextSongIndex = songIndex + step
+            print(progress_counter.placeholder() + '  '
+                + label_formatter.format('Link')
+                + f'{Fore.LIGHTBLUE_EX}https://youtu.be/{song.youtube_id}{Fore.RESET}')
+        nextSongIndex = song_index + step
         nextSongIndex = (nextSongIndex + songCount) % (2 * songCount) - songCount
         if nextSongIndex < 0:
             nextSongIndex = songCount + nextSongIndex
         nextSongFile = songFiles[nextSongIndex]
-        nextCounter = counterMaker.placeholder(('<--', '-->')[playDirection == 'forward'])
-        nextSong = Song(nextSongFile)
+        nextCounter = progress_counter.placeholder(('<--', '-->')[playDirection == 'forward'])
+        nextSong = SongModel(nextSongFile)
         print(('', '\n')[verbose] + f'{nextCounter}  '
             + f'{Fore.WHITE + Style.DIM}{nextSong.duration}  {Style.RESET_ALL}'
             + f'{Fore.WHITE + Style.DIM}{nextSong.artist}  {Style.RESET_ALL}'
             + f'{Fore.WHITE + Style.DIM}{nextSong.title}{Style.RESET_ALL}'
-            + f'{Fore.WHITE + Style.DIM}{("", " (JUNK)")[nextSong.hasJunkFilename]}  {Style.RESET_ALL}', end = '', flush = True)
+            + f'{Fore.WHITE + Style.DIM}{("", " (JUNK)")[nextSong.has_junk_filename]}  {Style.RESET_ALL}', end = '', flush = True)
         try:
             pygame.mixer.music.load(songFile)
             pygame.mixer.music.play()
@@ -151,19 +151,19 @@ def playSongs(args):
     global verbose
     global songFiles
     global songCount
-    global counterMaker
+    global progress_counter
     global songPlayerThread
     
-    repositoryPath = Path(args.repo)
+    repository_path = Path(args.repo)
     keywords = args.keywords
     verbose = args.verbose
-    songFiles = getSongFiles(
-        repositoryPath, 
+    songFiles = get_repository_song_files(
+        repository_path, 
         keywords = keywords, 
-        filterMatchThreshold = args.match,
-        songIndex = args.index, 
-        playlistIdentifier = args.playlist, 
-        displaySummary = True)
+        filter_match_threshold = args.match,
+        song_index = args.index, 
+        playlist_identifier = args.playlist, 
+        display_summary = True)
     print('\n'
         + f'{Fore.LIGHTMAGENTA_EX}[  <--  ]{Style.DIM}  Prev song / Play backward{Fore.RESET + Style.RESET_ALL}\n'
         + f'{Fore.LIGHTMAGENTA_EX}[  -->  ]{Style.DIM}  Next song / Play forward{Fore.RESET + Style.RESET_ALL}\n'
@@ -173,7 +173,7 @@ def playSongs(args):
     if (args.shuffle):
         random.shuffle(songFiles)
     songCount = len(songFiles)
-    counterMaker = CounterMaker(songCount)
+    progress_counter = ProgressCounter(songCount)
 
     # Run song player in a daemon thread
     songPlayerThread = Thread(target = runSongPlayer)
