@@ -1,7 +1,7 @@
 
-# PYPL2MP3 - YouTube playlist MP3 converter<br>that can also shazam, tag and play songs
+# YouTube playlist MP3 converter<br>that can also shazam, tag and play songs
 
-PYPL2MP3 is a Python program that downloads audio from entire YouTube playlists and saves the tracks in MP3 format with Shazam-confirmed ID3 tags and proper cover art.
+**PYPL2MP3** is a Python program that downloads audio from entire YouTube playlists and saves the tracks in MP3 format with shazam-confirmed ID3 tags and proper cover art.
 
 The program runs from the command line and is designed for a clean and user-friendly experience.
 
@@ -20,25 +20,27 @@ The program runs from the command line and is designed for a clean and user-frie
 [Commands](#commands)&nbsp;&nbsp; 
 [Examples](#examples)&nbsp;&nbsp;
 [Troubleshooting](#troubleshooting)&nbsp;&nbsp; 
+[Thanks](#thanks)&nbsp;&nbsp; 
 
 ---
 
 ## Features
 
 - Import YouTube playlist songs in MP3 format  
-- Automatically identify songs using Shazam to set accurate ID3 tags and cover art  
-- Manually tag or clean up unmatched ("junk") songs  
-- List songs and playlists with detailed info  
+- Automatically shazam songs to set accurate ID3 tags and cover art  
+- Manually set metadata to shazam-unmatched "junk" songs
+- Cleanup existing metadata from imported songs
+- List songs and playlists with detailed information  
 - Play songs directly from the CLI or open their YouTube videos  
-- Filter and sort songs via fuzzy search  
+- Filter and sort songs via fuzzy search (available for all commands)  
 
 ---
 
 ## Limitations
 
 - Only public playlists can be imported  
-- Region-restricted videos are excluded  
-- Age-restricted videos cannot be imported (but do not block others)  
+- Region-restricted videos are excluded from import 
+- Import of age-restricted videos fails but do not block others  
 
 ---
 
@@ -47,21 +49,19 @@ The program runs from the command line and is designed for a clean and user-frie
 PYPL2MP3 requires:
 
 - Python ≥ 3.7  
-- [`pytubefix`](https://pytubefix.readthedocs.io/) (used under the hood)  
 
 ### Dependency Manager
 
-- [Poetry](https://python-poetry.org/docs/) is required to manage dependencies.
+- [Poetry](https://python-poetry.org/docs/) is required to manage dependencies and run the program in its own virtual env.
 
 ### Audio Tools
 
-- [`ffmpeg`](https://www.ffmpeg.org/) and `ffprobe` must be installed for audio conversion and tagging.
+- [`ffmpeg`](https://www.ffmpeg.org/) and `ffprobe` (shipped together) must be installed for audio conversion and tagging.
 
 ### Proof of Origin Token
 
-- A Proof of Origin Token (POT) is needed to access YouTube audio streams, generated using [Node.js](https://nodejs.org/en/download) via BotGuard.  
-- Supported automatically from `pytubefix` version `8.12`.  
-  → [Details here](https://pytubefix.readthedocs.io/en/latest/user/po_token.html)
+- A Proof of Origin Token (POT) is needed to access YouTube audio / video streams (&nbsp;→&nbsp;[details here](https://pytubefix.readthedocs.io/en/latest/user/po_token.html)&nbsp;).  
+- It is automatically generated via BotGuard from `pytubefix` version `8.12` and requires [`Node.js`](https://nodejs.org/en/download) to be installed.  
 
 ---
 
@@ -75,7 +75,7 @@ poetry install
 
 ## Configuration
 
-PYPL2MP3 works out of the box, storing imported playlists in `~/pypl2mp3` by default.
+PYPL2MP3 works out of the box, storing imported playlists in `~/pypl2mp3` by default. It does not require any database.
 
 ### Optional Environment Variables
 
@@ -85,10 +85,10 @@ PYPL2MP3 works out of the box, storing imported playlists in `~/pypl2mp3` by def
 Example setup (in terminal):
 ```sh
 export PYPL2MP3_DEFAULT_REPOSITORY_PATH="/your/custom/path"
-export PYPL2MP3_DEFAULT_PLAYLIST_ID="yourPlaylistID"
+export PYPL2MP3_DEFAULT_PLAYLIST_ID="yourFavoritePlaylistID"
 ```
 
-To persist settings, add these to your `.bashrc` or `.zshrc`.
+To persist settings, add these to your `.bashrc` or `.zshrc` file.
 
 ---
 
@@ -127,11 +127,11 @@ sh /path/to/pypl2mp3.sh <command> [options]
 
 ## Commands
 
-**Note:** In the command usages described bellow, the term "INDEX" refers to the rank of an item in a list of songs or playlists resulting from a command; it therefore only make sense at the time the command is ran.
+**Note:** In the command uses described below, the term "INDEX" refers to the rank of an item in a list of songs or playlists resulting from the applied filter criteria; it therefore only has meaning at the time of command execution.
 
 
 ### Global Options
-- `-r, --repo <path>`: Set playlist repository (default: `~/pypl2mp3`)  
+- `-r, --repo <path>`: Set playlist repository (default: see [Configuration](#configuration))  
 - `-h, --help`: Show command-specific help  
 
 ---
@@ -140,14 +140,18 @@ sh /path/to/pypl2mp3.sh <command> [options]
 ```sh
 pypl2mp3 import [options] <playlist>
 ```
+Arguments (may be optional if a favorite playlist is configured):
+- `playlist`: ID, URL or INDEX of a playlist to import (default: see [Configuration](#configuration))
+  
+  **TIP:** *Song URLs are also accepted; the playlist ID will be extracted from them.*
+
 Options:
-- `playlist`: ID, URL or INDEX of a playlist to import (default: see configuration)
 - `-f, --filter <inputs>`: Filter songs to import using keywords
 - `-m, --match <level>`: Filter match threshold (0-100, default: 45)
 - `-t, --thresh <level>`: Shazam match threshold (0-100, default: 50)
 - `-p, --prompt`: Prompt before importing each new song
 
-This command imports a new YouTube playlist and also syncs previously imported tracks. When syncing, only tracks newly added to the YouTube playlist are eligible for import.
+This command imports a new YouTube playlist and also syncs previously imported tracks. When syncing, only tracks newly added to the YouTube playlist are eligible for import. It also provides a prompt mode to confirm each song import.
 
 ---
 
@@ -170,7 +174,7 @@ Options:
 
 ---
 
-### `junks` – List unmatched "junk" songs
+### `junks` – List shazam-unmatched "junk" songs
 ```sh
 pypl2mp3 junks [options]
 ```
@@ -193,6 +197,8 @@ Options:
 - `-t, --thresh <level>`: Shazam match threshold (0-100, default: 50)
 - `-p, --prompt`: Prompt to set ID3 tags and cover art for each song
 
+This command attempts to batch retrieve "junk" song metadata from YouTube and then Shazam and automatically fix MP3 filenames. It also provides an interactive prompt mode to validate or fix the retrieved metadata for each of the selected songs and rename the MP3 files accordingly.
+
 ---
 
 ### `untag` – Remove metadata from songs
@@ -204,6 +210,8 @@ Options:
 - `-f, --filter <inputs>`: Filter songs using keywords and sort by relevance
 - `-m, --match <level>`: Filter match threshold (0-100, default: 45)
 - `-p, --prompt`: Prompt to removes ID3 tags and cover art from each song
+
+This command batch cleanup metadata for all selected songs. It also provides a prompt mode to confirm cleanup song by song.
 
 ---
 
@@ -217,15 +225,20 @@ Options:
 - `-m, --match <level>`: Filter match threshold (0-100, default: 45)
 - `-v, --verbose`: Enable verbose output
 
+This command prompts to open the YouTube video for each of the selected songs.
+
 ---
 
 ### `play` – Play songs
 ```sh
 pypl2mp3 play [options] [filter] [index]
 ```
-Options:
+
+Arguments (optional):
 - `filter`: Filter songs using keywords and sort by relevance
-- `index`: INDEX of a song to play (0 for random song)
+- `index`: INDEX of a single song to play (0 for random song)
+
+Options:
 - `-l, --list <playlist>`: Specify a particular playlist by its ID, URL or INDEX
 - `-m, --match <level>`: Filter match threshold (0-100, default: 45)
 - `-s, --shuffle`: Play songs in random order
@@ -244,19 +257,19 @@ Options:
 
 ## Examples
 
-**Import / sync playlist**
+**Import / sync a YouTube playlist with accurate Shazam recognition**
 ```sh
-pypl2mp3 import PLP6XxNg42qDG3u8ldvEEtWC8q0p0BLJXJ
+pypl2mp3 import -t 70 "https://www.youtube.com/playlist?list=PLP6XxNg42qDG3u8ldvEEtWC8q0p0BLJXJ"
 ```
 
-**Retrieve Jimmy Hendrix songs from imported playlists**
+**Permissively retrieve Jimi Hendrix songs from all imported playlists**
 ```sh
-pypl2mp3 songs -f "hendrix"
+pypl2mp3 songs -f "hendrix jim" -m 25
 ```
 
-**Tag Shazam-unmatched (junk) songs interactively**
+**Interactively tag shazam-unmatched "junk" songs in a given playlist**
 ```sh
-pypl2mp3 tag -p
+pypl2mp3 tag -l PLP6XxNg42qDG3u8ldvEEtWC8q0p0BLJXJ -p
 ```
 
 **Play random Dire Straits songs from playlist #2**
@@ -272,3 +285,9 @@ Issues during import or tagging may be due to recent YouTube changes. Try updati
 ```sh
 poetry add pytubefix@latest
 ```
+
+---
+
+## Thanks
+
+PYPL2MP3 relies primarily on [`pytubefix`](https://github.com/JuanBindez/pytubefix) and [`shazamio`](https://github.com/shazamio/ShazamIO) under the hood to provide its core features. These packages work perfectly and are well maintained. They also require a lot of effort to sync with the services they provide access to. So, if you like PYPL2MP3, please give them a&nbsp;★ on GitHub.
