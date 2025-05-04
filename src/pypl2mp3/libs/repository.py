@@ -1,174 +1,428 @@
 #!/usr/bin/env python3
 
 """
-This file is part of PYPL2MP3 software, 
-a YouTube playlist MP3 converter that can also shazam, tag and play songs.
+PYPL2MP3: YouTube playlist MP3 converter and player,
+with Shazam song identification and tagging capabilities.
 
-@author    Thierry Thiers <webcoder31@gmail.com>
-@copyright 2024 © Thierry Thiers <webcoder31@gmail.com>
-@license   http://www.cecill.info  CeCILL-C License
-@link      https://github.com/webcoder31/pypl2mp3
+This module handles playlist and song file management within the
+repository structure, including retrieval and filtering of song files.
+
+Copyright 2024 © Thierry Thiers <webcoder31@gmail.com>
+License: CeCILL-C (http://www.cecill.info)
+Repository: https://github.com/webcoder31/pypl2mp3
 """
 
 # Python core modules
+from __future__ import annotations
+
 import math
 import random
 import re
+from pathlib import Path
 from types import SimpleNamespace
+from typing import List, Optional
+from urllib.parse import parse_qs, urlparse
 
 # Third party packages
-from colorama import Fore, Back, Style
+from colorama import Back, Fore, Style
 
 # pypl2mp3 libs
-from pypl2mp3.libs.song import Song, SongError
-from pypl2mp3.libs.utils import extractYoutubeIdFromFilename, deterministicListSorter, fuzzyMatchLevel
+from pypl2mp3.libs.song import SongModel, SongError
+from pypl2mp3.libs.utils import (
+    extract_youtube_id_from_filename,
+    get_deterministic_sort_key,
+    calculate_fuzzy_match_score,
+)
 
 
-def getPlaylist(repositoryPath, playlistIdentifier, mustExist = True):
+def get_repository_playlist(
+    repository_path: Path,
+    playlist_identifier: str,
+    must_exist: bool = True
+) -> SimpleNamespace:
     """
-    Get playlist information from any playlist identifier (an ID or an URL or an instant index)
+    Retrieve playlist information from a playlist identifier.
+
+    Args:
+        repository_path: Path to the repository root
+        playlist_identifier: YouTube playlist ID, URL, or index number
+        must_exist: If True, raises error when playlist isn't found
+
+    Returns:
+        SimpleNamespace containing playlist details (id, url, exists, folder, path, name)
+
+    Raises:
+        SongError: If playlist index is invalid or playlist doesn't exist when must_exist=True
     """
+
+    def _get_playlist_folders() -> List[str]:
+        """
+        Get all playlist folders in the repository.
+
+        This function retrieves all folders in the repository that match
+        the expected playlist naming convention. The folders are sorted
+        by a deterministic key to ensure consistent ordering.
+        The naming convention is expected to be: "PlaylistName [YouTubeID]".
+
+        Args:
+            repository_path: Path to the repository root
+
+        Returns:
+            List of playlist folder names sorted by deterministic key
+        """
+        return sorted(
+            [folder.name for folder in repository_path.glob("*")
+             if re.match(r"^.*\[[^\]]+\][^\]]*$", folder.name)],
+            key=get_deterministic_sort_key
+        )
+
+    def _extract_playlist_id(identifier: str) -> str:
+        """
+        Extract YouTube playlist ID from a URL or ID string.
+
+        Args:
+            identifier: YouTube playlist ID or URL
+
+        Returns:
+            Extracted playlist ID
+        """
+
+        # Try to extract the playlist ID from the identifier handled as a URL
+        parsed_url = urlparse(identifier)
+        query_params = parse_qs(parsed_url.query)
+        playlist_id = query_params.get("list", [None])[0]
+
+        # If the playlist ID is not found in the URL, use the identifier as is
+        if playlist_id is None:
+            playlist_id = identifier
+
+        # Validate the playlist ID format
+        # The ID should be alphanumeric and between 16 to 34 characters long
+        # (YouTube playlist IDs are typically 34 characters long)
+        if re.match(r"^[A-Za-z0-9_-]{16,34}$", playlist_id) is None:
+            raise SongError("Invalid playlist ID format.")
+
+        return playlist_id
+
+    # Get all playlist folders in the repository
+    playlist_folders = _get_playlist_folders()
     
-    playlistIdentifier = playlistIdentifier
-    playlistFolders = [
-        folder.name 
-        for folder in list(repositoryPath.glob('*')) 
-        if re.match(r'^.*\[[^\]]+\][^\]]*$', folder.name)
+    # Handle numeric playlist identifiers (indexes)
+    if str(playlist_identifier).isnumeric():
+        index = int(playlist_identifier) - 1
+
+        # If playlist index is out of range, raise an error
+        if not (0 <= index < len(playlist_folders)):
+            raise SongError("Playlist index is out of range.")
+        
+        # If index is valid, return the corresponding playlist
+        folder = playlist_folders[index]
+        playlist_id = extract_youtube_id_from_filename(folder)
+        return SimpleNamespace(
+            id=playlist_id,
+            url=f"https://www.youtube.com/playlist?list={playlist_id}",
+            exists=True,
+            folder=folder,
+            path=repository_path / folder,
+            name=folder[:-len(playlist_id)-3]
+        )
+
+    # Handle YouTube playlist IDs or URLs
+    playlist_id = _extract_playlist_id(str(playlist_identifier))
+    matching_folders = [
+        folder for folder in playlist_folders
+        if playlist_id in folder
     ]
-    playlistFolders.sort(key = deterministicListSorter)
-    if str(playlistIdentifier).isnumeric():
-        if 0 <= int(playlistIdentifier) - 1 < len(playlistFolders):
-            id = extractYoutubeIdFromFilename(playlistFolders[int(playlistIdentifier) - 1])
-            url = 'https://www.youtube.com/playlist?list=' + id
-            exists = True
-            folder = playlistFolders[int(playlistIdentifier) - 1]
-            path = repositoryPath / folder
-            name = folder[:(-1 * len(id) - 3)]
-        else:
-            raise SongError('Playlist index is out of range.')
-    else:
-        id = str(playlistIdentifier)
-        match = re.match(r'[&?]list=(?P<id>[^&]+)', str(id), re.IGNORECASE)
-        if match:
-            id = match.group('id')
-        url = 'https://www.youtube.com/playlist?list=' + id
-        matchingFolders = [folder for folder in playlistFolders if id in folder]
-        matchingFolders.sort(key = deterministicListSorter)
-        if len(matchingFolders) > 1:
-            raise SongError(f'More than one playlists match YouTube ID in repository.')
-        if len(matchingFolders) > 0:
-            exists = True
-            folder = matchingFolders[0]
-            path = repositoryPath / folder
-            name = folder[:(-1 * len(id) - 3)]
-        else:
-            if mustExist:
-                raise SongError(f'Playlist does not exist in repository.')
-            exists = False
-            folder = None
-            path = None
-            name = None
+    
+    # If multiple folders match the playlist ID, raise an error
+    if len(matching_folders) > 1:
+        raise SongError("Multiple playlists match YouTube ID in repository.")
+    
+    if not matching_folders:
+
+        # If no matching folders are found and must_exist is True, raise an error
+        if must_exist:
+            raise SongError("Playlist does not exist in repository.")
+        
+        # If no matching folders are found and must_exist is False, 
+        # return a blank playlist object to be used for importing a new playlist
+        return SimpleNamespace(
+            id=playlist_id,
+            url=f"https://www.youtube.com/playlist?list={playlist_id}",
+            exists=False,
+            folder=None,
+            path=None,
+            name=None
+        )
+
+    # If exactly one matching folder is found, return its details
+    folder = matching_folders[0]
     return SimpleNamespace(
-        id = id,
-        url = url,
-        exists = exists,
-        folder = folder,
-        path = path,
-        name = name)
+        id=playlist_id,
+        url=f"https://www.youtube.com/playlist?list={playlist_id}",
+        exists=True,
+        folder=folder,
+        path=repository_path / folder,
+        name=folder[:-len(playlist_id)-3]
+    )
 
 
-def getMatchingSongs(searchPath, keywords='', threshold=45, junkOnly=False):
+def get_repository_song_files(
+    repository_path: Path,
+    junk_only: bool = False,
+    keywords: str = "",
+    filter_match_threshold: float = 45,
+    song_index: Optional[int] = None,
+    playlist_identifier: Optional[str] = None,
+    display_summary: bool = False
+) -> List[Path]:
     """
-    Finds and returns a list of song paths sorted by weighted match level,
-    ensuring scores are more evenly distributed but still preserve ranking differences.
+    Retrieve song files from repository or playlist matching specified criteria.
+
+    Args:
+        repository_path: Root path of the repository
+        junk_only: If True, only return songs marked as junk
+        keywords: Search terms to filter songs
+        filter_match_threshold: Minimum match score for keyword filtering
+        song_index: Specific song index to retrieve (1-based, 0 for random)
+        playlist_identifier: Optional playlist to search within
+        display_summary: If True, print search criteria and results
+
+    Returns:
+        List of paths to matching song files
+
+    Raises:
+        SongError: If no songs are found or index is out of range
     """
 
-    filePattern = '*.mp3' if not junkOnly else '*(JUNK).mp3'
+    search_path = repository_path
+    selected_playlist = None
 
-    # Get valid songs with YouTube IDs
-    songFiles = [
-        songPath for songPath in searchPath.rglob(filePattern)
-        if extractYoutubeIdFromFilename(songPath.name) is not None
+    # If a playlist identifier is provided, retrieve the playlist
+    # and set the search path to the playlist folder
+    if playlist_identifier:
+        selected_playlist = get_repository_playlist(repository_path, playlist_identifier, must_exist=True)
+        search_path = selected_playlist.path
+
+    # Retrieve all song files matching the search criteria
+    song_files = _find_matching_songs(
+        search_path,
+        keywords,
+        filter_match_threshold,
+        junk_only
+    )
+
+    # If no songs are found, raise an error
+    if not song_files:
+        raise SongError("No songs found.")
+
+    # If a specific song index is provided, filter the list
+    if song_index is not None:
+
+        # If song index is out of range, raise an error
+        if not (0 <= song_index <= len(song_files)):
+            raise SongError("Song index is out of range.")
+        
+        # If song index is 0, select a random song
+        index = random.randint(0, len(song_files) - 1) if song_index == 0 else song_index - 1
+
+        # If a specific song index is provided, 
+        # restritc song list to that song
+        song_files = [song_files[index]]
+
+    # Display search summary if requested
+    if display_summary:
+        _display_song_search_summary(
+            len(song_files),
+            selected_playlist,
+            keywords,
+            filter_match_threshold
+        )
+
+    # Return the list of song files
+    return song_files
+
+
+def _find_matching_songs(
+    search_path: Path,
+    keywords: str = "",
+    threshold: float = 45,
+    junk_only: bool = False
+) -> List[Path]:
+    """
+    Find and sort song files based on search criteria and match scores.
+
+    Args:
+        search_path: Path to search for song files
+        keywords: Search terms to filter songs
+        threshold: Minimum match score for keyword filtering
+        junk_only: If True, only return songs marked as junk
+
+    Returns:
+        List of paths to matching song files
+
+    Raises:
+        SongError: If no songs are found
+    """
+    
+    # Get all valid song files with YouTube IDs
+    file_pattern = "*(JUNK).mp3" if junk_only else "*.mp3"
+    song_files = [
+        path for path in search_path.rglob(file_pattern)
+            if extract_youtube_id_from_filename(path.name)
     ]
 
-    # If no keywords are provided, return song files sorted by song name
-    if keywords == '':
-        songFiles = [
-            {'path': songPath, 'name': f'{song.artist} - {song.title}'}
-            for songPath in songFiles if (song := Song(songPath))  # Create and assign `song` once
-        ]
-        songFiles.sort(key = lambda song: (deterministicListSorter(song['name']), song['path'].parent.name))
-        return [song['path'] for song in songFiles]
+    if not keywords:
+        # If no keywords are provided, return songs sorted by name
+        return _sort_songs_by_name(song_files)
+
+    # If keywords are provided, return songs filtered and sorted by match score
+    return _filter_and_sort_songs_by_match_score(song_files, keywords, threshold)
+
+
+def _sort_songs_by_name(song_files: List[Path]) -> List[Path]:
+    """
+    Sort songs by artist and title.
+
+    Args:
+        song_files: List of song file paths
+
+    Returns:
+        List of sorted song file paths
+    """
     
-    # Compute raw match levels
-    matchedSongs = [
-        {'path': songPath, 'matchLevel': fuzzyMatchLevel(song.artist, song.title, keywords)}
-        for songPath in songFiles if (song := Song(songPath))  # Create and assign `song` once
+    # Create a list of song objects with their paths and names
+    songs = []
+    for path in song_files:
+        try:
+            song = SongModel(path)
+            songs.append({
+                "path": path,
+                "name": f"{song.artist} - {song.title}"
+            })
+        except Exception:
+            # Skip files that cannot be read as songs
+            continue
+    
+    # Return sorted song paths based on artist and title
+    return [
+        song["path"] for song in sorted(
+            songs,
+            key=lambda s: (get_deterministic_sort_key(s["name"]), s["path"].parent.name)
+        )
     ]
 
-    # Exclude songs with zero match level
-    matchedSongs = [song for song in matchedSongs if song['matchLevel'] > 0]
 
-    if not matchedSongs:
-        return []  # No valid matches
-
-    # Sort songs by match level (descending)
-    matchedSongs.sort(key=lambda song: song['matchLevel'], reverse=True)
-
-    # Apply square root normalization
-    min_score = min(song['matchLevel'] for song in matchedSongs)
-    max_score = max(song['matchLevel'] for song in matchedSongs)
-    score_range = max_score - min_score
-    for song in matchedSongs:
-        raw_score = song['matchLevel'] - (min_score if score_range > 0 else 0)
-        normalized_score = (math.sqrt(raw_score) / math.sqrt(score_range or 1)) * 100
-        song['matchLevel'] = normalized_score
-
-    # Filter using the threshold
-    return [song['path'] for song in matchedSongs if song['matchLevel'] >= threshold]
-
-
-def getSongFiles(
-        repositoryPath, 
-        junkOnly = False, 
-        keywords = '', 
-        filterMatchThreshold = 45,
-        songIndex = None, 
-        playlistIdentifier = None, 
-        displaySummary = False):
+def _filter_and_sort_songs_by_match_score(
+    song_files: List[Path],
+    keywords: str,
+    threshold: float
+) -> List[Path]:
     """
-    Retrieve song files, from a particular repository or playlist, that match 
-    an optional filter operating on song file names and/or, optionally, match
-    a song located at a given index within the selected songs.
-    If requested, display a short summary about song selection criteria.
+    Filter and sort songs based on keyword match scores.
+
+    Args:
+        song_files: List of song file paths
+        keywords: Search terms to filter songs
+        threshold: Minimum match score for keyword filtering
+
+    Returns:
+        List of filtered and sorted song file paths
+
+    Raises:
+        SongError: If song metadata cannot be read
     """
     
-    searchPath = repositoryPath
-    selectedPlaylist = None
-    if playlistIdentifier:
-        selectedPlaylist = getPlaylist(repositoryPath, playlistIdentifier, mustExist = True)
-        searchPath = selectedPlaylist.path
-    songFiles = getMatchingSongs(searchPath, keywords, filterMatchThreshold, junkOnly)
-    songCount = len(songFiles)
-    if songCount == 0:
-        raise SongError(f'No song found.')
-    if songIndex is not None:
-        if abs(songIndex) > songCount:
-            raise SongError(f'Song index is out of range.')
-        songFiles = [songFiles[(songIndex - 1, random.randint(0, songCount - 1))[songIndex == 0]]]
-    if displaySummary:
-        print(f'\n{Back.YELLOW + Style.BRIGHT} Found {len(songFiles)} songs matching criteria {Style.RESET_ALL}\n')
-        if selectedPlaylist:
-            print(f'{Fore.WHITE + Style.DIM} ⇨ Playlist:   {Style.RESET_ALL}'
-                + f'{Fore.LIGHTBLUE_EX}{selectedPlaylist.name}{Fore.RESET}')
-        else:
-            print(f'{Fore.WHITE + Style.DIM} ⇨ Playlists:  {Style.RESET_ALL}'
-                + f'{Fore.LIGHTBLUE_EX}ALL{Fore.RESET}')
-        if keywords:
-            print(f'{Fore.WHITE + Style.DIM} ⇨ Filter:     {Style.RESET_ALL}'
-                + f'{Fore.LIGHTBLUE_EX}{keywords}  '
-                + f'{Style.DIM}(match threshold: {filterMatchThreshold}%){Fore.RESET + Style.RESET_ALL}')
-        else:
-            print(f'{Fore.WHITE + Style.DIM} ⇨ Filter:     {Style.RESET_ALL}'
-                + f'{Fore.LIGHTBLUE_EX}NONE{Fore.RESET}')
-    return songFiles
+    # Create a list of song objects with their paths and match scores
+    matched_songs = []
+    for path in song_files:
+        try:
+            song = SongModel(path)
+            match_level = calculate_fuzzy_match_score(song.artist, song.title, keywords)
+
+            if match_level > 0:
+                matched_songs.append({"path": path, "match_level": match_level})
+        except Exception:
+            # Skip files that cannot be read as songs
+            continue
+
+    if not matched_songs:
+        # If no songs match the criteria, return an empty list
+        return []
+
+    # if songs match the criteria, return them filterd and sorted by match score
+    return _normalize_and_filter_song_matches(matched_songs, threshold)
+
+
+def _normalize_and_filter_song_matches(
+    matched_songs: List[dict],
+    threshold: float
+) -> List[Path]:
+    """
+    Normalize song match scores and filter based on threshold.
+
+    Args:
+        matched_songs: List of matched songs with scores
+        threshold: Minimum match score for filtering
+
+    Returns:
+        List of filtered song file paths sorted by match score
+
+    Raises:
+        SongError: If no songs are found after filtering
+    """
+
+    # Sort matched songs by match level in descending order
+    matched_songs.sort(key=lambda s: s["match_level"], reverse=True)
+    
+    # Calculate the minimum and maximum match scores
+    # and the range of scores for normalization
+    scores = [song["match_level"] for song in matched_songs]
+    min_score = min(scores)
+    score_range = max(scores) - min_score
+
+    # Normalize match scores to a 0-100 range
+    for song in matched_songs:
+        raw_score = song["match_level"] - (min_score if score_range > 0 else 0)
+        song["match_level"] = (math.sqrt(raw_score) / math.sqrt(score_range or 1)) * 100
+
+    # Return songs that meet the threshold criteria
+    return [
+        song["path"] for song in matched_songs
+        if song["match_level"] >= threshold
+    ]
+
+
+def _display_song_search_summary(
+    song_count: int,
+    playlist: Optional[SimpleNamespace],
+    keywords: str,
+    threshold: float
+) -> None:
+    """
+    Display song search results summary.
+
+    Args:
+        song_count: Number of songs found
+        playlist: Playlist information (if applicable)
+        keywords: Search terms used
+        threshold: Match score threshold
+    """
+
+    print(f"\n{Back.YELLOW + Style.BRIGHT} Found {song_count} songs matching criteria {Style.RESET_ALL}\n")
+    
+    if playlist:
+        print(f"{Fore.WHITE + Style.DIM} ⇨ Playlist:   {Style.RESET_ALL}"
+              f"{Fore.LIGHTBLUE_EX}{playlist.name}{Fore.RESET}")
+    else:
+        print(f"{Fore.WHITE + Style.DIM} ⇨ Playlists:  {Style.RESET_ALL}"
+              f"{Fore.LIGHTBLUE_EX}ALL{Fore.RESET}")
+
+    if keywords:
+        print(f"{Fore.WHITE + Style.DIM} ⇨ Filter:     {Style.RESET_ALL}"
+              f"{Fore.LIGHTBLUE_EX}{keywords}  "
+              f"{Style.DIM}(match threshold: {threshold}%){Fore.RESET + Style.RESET_ALL}")
+    else:
+        print(f"{Fore.WHITE + Style.DIM} ⇨ Filter:     {Style.RESET_ALL}"
+              f"{Fore.LIGHTBLUE_EX}NONE{Fore.RESET}")
+        

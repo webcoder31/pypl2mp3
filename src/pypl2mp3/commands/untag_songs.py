@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+
+"""
+PYPL2MP3: YouTube playlist MP3 converter and player,
+with Shazam song identification and tagging capabilities.
+
+This module handles the removal of ID3 tags from audio files.
+
+Copyright 2024 © Thierry Thiers <webcoder31@gmail.com>
+License: CeCILL-C (http://www.cecill.info)
+Repository: https://github.com/webcoder31/pypl2mp3
+"""
+
+# Python core modules
+from pathlib import Path
+from typing import Any, List
+
+# Third party packages
+from colorama import Fore, Style
+
+# pypl2mp3 libs
+from pypl2mp3.libs.repository import get_repository_song_files
+from pypl2mp3.libs.song import SongModel
+from pypl2mp3.libs.utils import ProgressCounter, format_song_display
+
+
+def untag_songs(args: Any) -> None:
+    """
+    Remove ID3 tags from song files based on provided arguments.
+
+    Args:
+        args: Command line arguments with the following attributes:
+            - repo (str): Path to the repository containing songs
+            - prompt (bool): Whether to prompt for confirmation for each song
+            - keywords (List[str]): Keywords to filter songs
+            - match (float): Threshold for keyword matching
+            - playlist (str): Playlist identifier for filtering
+
+    Raises:
+        FileNotFoundError: If the repository path doesn't exist
+    """
+
+    should_prompt_per_song = args.prompt
+    
+    # Get list of songs matching criteria
+    song_files = _get_filtered_songs(args)
+    if not song_files:
+        print(f"{Fore.YELLOW}No songs found matching the criteria.{Style.RESET_ALL}")
+        return
+
+    if not _confirm_bulk_operation(should_prompt_per_song):
+        return
+
+    _process_songs(song_files, should_prompt_per_song)
+
+
+def _get_filtered_songs(args: Any) -> List[str]:
+    """
+    Retrieve filtered list of songs based on search criteria.
+
+    Args:
+        args: Command line arguments
+        repository_path: Path to the song repository
+
+    Returns:
+        List[str]: List of matched song file paths
+    """
+
+    return get_repository_song_files(
+        Path(args.repo),
+        keywords=args.keywords,
+        filter_match_threshold=args.match,
+        playlist_identifier=args.playlist,
+        display_summary=True
+    )
+
+
+def _confirm_bulk_operation(should_prompt_per_song: bool) -> bool:
+    """
+    Request user confirmation for bulk untagging operation.
+
+    Args:
+        should_prompt_per_song: Whether individual prompts will be shown
+
+    Returns:
+        bool: True if user confirms, False otherwise
+    """
+
+    if should_prompt_per_song:
+        return True
+
+    confirmation = input(
+        f"\n{Style.BRIGHT}{Fore.LIGHTBLUE_EX}This will untag all songs found. Continue "
+        + f"{Style.RESET_ALL}({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? "
+    )
+
+    return confirmation.lower() == "yes"
+
+
+def _process_songs(song_files: List[str], should_prompt_per_song: bool) -> None:
+    """
+    Process each song file for untagging.
+
+    Args:
+        song_files: List of song file paths to process
+        should_prompt_per_song: Whether to prompt for confirmation for each song
+    """
+
+    progress_counter = ProgressCounter(len(song_files))
+
+    for index, song_pathname in enumerate(song_files, 1):
+        counter = progress_counter.format(index)
+        song = SongModel(song_pathname)
+        
+        print(f"\n{format_song_display(counter, song)}  "
+            + f"{Fore.WHITE + Style.DIM}[https://youtu.be/{song.youtube_id}]")
+
+        if should_prompt_per_song and not _confirm_single_song():
+            continue
+
+        _untag_single_song(song)
+
+
+def _confirm_single_song() -> bool:
+    """
+    Request user confirmation for untagging a single song.
+
+    Returns:
+        bool: True if user confirms, False otherwise
+    """
+
+    confirmation = input(
+        f"{Style.BRIGHT}{Fore.LIGHTBLUE_EX}Do you want to untag this song"
+        + f"{Style.RESET_ALL} ({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? "
+    )
+
+    return confirmation.lower() == "yes"
+
+
+def _untag_single_song(song: SongModel) -> None:
+    """
+    Remove tags from a single song and rename it.
+
+    Args:
+        song: SongModel instance to be untagged
+    """
+
+    song.reset_state()
+    song.fix_filename()
+    
+    print(f"Song untagged and renamed to: {Fore.LIGHTCYAN_EX}{song.filename}{Fore.RESET}")
