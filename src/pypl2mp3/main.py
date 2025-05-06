@@ -173,7 +173,7 @@ def _run_browse_videos(args: argparse.Namespace) -> None:
     browse_videos(args)
 
 
-async def _run_play_songs(args: argparse.Namespace) -> None:
+def _run_play_songs(args: argparse.Namespace) -> None:
     """
     Runner for the "play" command.
 
@@ -184,7 +184,7 @@ async def _run_play_songs(args: argparse.Namespace) -> None:
     from pypl2mp3.commands.play_songs import play_songs
 
     try:
-        await play_songs(args)
+        play_songs(args)
     except KeyboardInterrupt:
         sys.stdout.write("\010\010  ")
         _handle_sigint(signal.SIGINT)
