@@ -614,9 +614,7 @@ def main():
         help="Enable verbose output"
     )
 
-    play_songs_command.set_defaults(
-        func=lambda args: asyncio.run(_run_play_songs(args))
-    )
+    play_songs_command.set_defaults(func=_run_play_songs)
 
 
     # Parse CLI
