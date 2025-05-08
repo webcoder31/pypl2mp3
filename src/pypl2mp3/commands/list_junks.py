@@ -25,7 +25,7 @@ from pypl2mp3.libs.song import SongModel
 from pypl2mp3.libs.utils import LabelFormatter, ProgressCounter, format_song_display
 
 
-def list_junk_songs(args: Any) -> None:
+def list_junks(args: Any) -> None:
     """
     List all songs marked as junk in the repository, with optional filtering and detailed information.
 

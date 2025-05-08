@@ -23,9 +23,10 @@ from pypl2mp3.libs.song import SongModel
 from pypl2mp3.libs.utils import ProgressCounter, format_song_display
 
 
-def untag_songs(args: Any) -> None:
+def junkize_songs(args: Any) -> None:
     """
-    Remove ID3 tags from song files based on provided arguments.
+    Remove ID3 tags from song files based on provided arguments 
+    and rename them marked as "junk".
 
     Args:
         args: Command line arguments with the following attributes:
@@ -62,7 +63,7 @@ def untag_songs(args: Any) -> None:
 
 def _process_songs(song_files: List[Path], should_prompt_per_song: bool) -> None:
     """
-    Process each song file for untagging.
+    Process each song file for make it "junk".
 
     Args:
         song_files: List of paths to song files
@@ -81,12 +82,12 @@ def _process_songs(song_files: List[Path], should_prompt_per_song: bool) -> None
         if should_prompt_per_song and not _confirm_single_song():
             continue
 
-        _untag_single_song(song)
+        _junkize_single_song(song)
 
 
 def _confirm_bulk_operation(should_prompt_per_song: bool) -> bool:
     """
-    Request user confirmation for bulk untagging operation.
+    Request user confirmation for bulk operation.
 
     Args:
         should_prompt_per_song: Whether individual prompts will be shown
@@ -99,7 +100,7 @@ def _confirm_bulk_operation(should_prompt_per_song: bool) -> bool:
         return True
 
     confirmation = input(
-        f"\n{Style.BRIGHT}{Fore.LIGHTBLUE_EX}This will untag all songs found. Continue "
+        f"\n{Style.BRIGHT}{Fore.LIGHTBLUE_EX}This will make \"junk\" all songs found. Continue "
         + f"{Style.RESET_ALL}({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? "
     )
 
@@ -108,21 +109,21 @@ def _confirm_bulk_operation(should_prompt_per_song: bool) -> bool:
 
 def _confirm_single_song() -> bool:
     """
-    Request user confirmation for untagging a single song.
+    Request user confirmation for making "junk" a single song.
 
     Returns:
         bool: True if user confirms, False otherwise
     """
 
     confirmation = input(
-        f"{Style.BRIGHT}{Fore.LIGHTBLUE_EX}Do you want to untag this song"
+        f"{Style.BRIGHT}{Fore.LIGHTBLUE_EX}Do you want to clear metadata for this song and make it \"junk\""
         + f"{Style.RESET_ALL} ({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? "
     )
 
     return confirmation.lower() == "yes"
 
 
-def _untag_single_song(song: SongModel) -> None:
+def _junkize_single_song(song: SongModel) -> None:
     """
     Remove tags from a single song and rename it.
 

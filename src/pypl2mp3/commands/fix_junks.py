@@ -439,9 +439,9 @@ class JunkSongTagger:
                     + f"{Fore.MAGENTA}{item['reason']}{Fore.RESET}")
 
 
-async def tag_junk_songs(args) -> None:
+async def fix_junks(args) -> None:
     """
-    Main entry point for junk song tagging process.
+    Main entry point for junk song fixing process.
 
     Args:
         args: Command line arguments containing:

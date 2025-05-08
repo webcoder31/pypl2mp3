@@ -155,9 +155,9 @@ Arguments (may be optional if a favorite playlist is configured):
   **Note:** *Song URLs are also accepted; the playlist ID will be extracted from them.*
 
 Options:
-- `-f, --filter <inputs>`: Filter songs to import using keywords
-- `-m, --match <level>`: Filter match threshold (0-100, default: 45)
-- `-t, --thresh <level>`: Shazam match threshold (0-100, default: 50)
+- `-f, --filter <filter>`: Filter songs to import using keywords
+- `-m, --match <percent>`: Filter match threshold (0-100, default: 45)
+- `-t, --thresh <percent>`: Shazam match threshold (0-100, default: 50)
 - `-p, --prompt`: Prompt before importing each new song
 
 This command imports a new YouTube playlist and also syncs previously imported tracks. When syncing, only tracks newly added to the YouTube playlist are eligible for import. It also provides a prompt mode to confirm each song import.
@@ -177,8 +177,8 @@ pypl2mp3 songs [options]
 ```
 Options:
 - `-l, --list <playlist>`: Specify a particular playlist by its ID, URL or INDEX
-- `-f, --filter <inputs>`: Filter songs using keywords and sort by relevance
-- `-m, --match <level>`: Filter match threshold (0-100, default: 45)
+- `-f, --filter <filter>`: Filter songs using keywords and sort by relevance
+- `-m, --match <percent>`: Filter match threshold (0-100, default: 45)
 - `-v, --verbose`: Enable verbose output
 
 ---
@@ -189,35 +189,35 @@ pypl2mp3 junks [options]
 ```
 Options:
 - `-l, --list <playlist>`: Specify a particular playlist by its ID, URL or INDEX
-- `-f, --filter <inputs>`: Filter songs using keywords and sort by relevance
-- `-m, --match <level>`: Filter match threshold (0-100, default: 45)
+- `-f, --filter <filter>`: Filter songs using keywords and sort by relevance
+- `-m, --match <percent>`: Filter match threshold (0-100, default: 45)
 - `-v, --verbose`: Enable verbose output
 
 ---
 
-### `tag` – Add metadata to "junk" songs
+### `fix` – Fix metadata and rename "junk" songs
 ```sh
 pypl2mp3 tag [options]
 ```
 Options:
 - `-l, --list <playlist>`: Specify a particular playlist by its ID, URL or INDEX
-- `-f, --filter <inputs>`: Filter songs using keywords and sort by relevance
-- `-m, --match <level>`: Filter match threshold (0-100, default: 45)
-- `-t, --thresh <level>`: Shazam match threshold (0-100, default: 50)
+- `-f, --filter <filter>`: Filter songs using keywords and sort by relevance
+- `-m, --match <percent>`: Filter match threshold (0-100, default: 45)
+- `-t, --thresh <percent>`: Shazam match threshold (0-100, default: 50)
 - `-p, --prompt`: Prompt to set ID3 tags and cover art for each song
 
 This command attempts to batch retrieve "junk" song metadata from YouTube and then Shazam and automatically fix MP3 filenames. It also provides an interactive prompt mode to validate or fix the retrieved metadata for each of the selected songs and rename the MP3 files accordingly.
 
 ---
 
-### `untag` – Remove metadata from songs
+### `junkize` – Remove metadata and make songs "junk"
 ```sh
 pypl2mp3 untag [options]
 ```
 Options:
 - `-l, --list <playlist>`: Specify a particular playlist by its ID, URL or INDEX
-- `-f, --filter <inputs>`: Filter songs using keywords and sort by relevance
-- `-m, --match <level>`: Filter match threshold (0-100, default: 45)
+- `-f, --filter <filter>`: Filter songs using keywords and sort by relevance
+- `-m, --match <percent>`: Filter match threshold (0-100, default: 45)
 - `-p, --prompt`: Prompt to removes ID3 tags and cover art from each song
 
 This command batch cleanup metadata for all selected songs. It also provides a prompt mode to confirm cleanup song by song.
@@ -230,8 +230,8 @@ pypl2mp3 videos [options]
 ```
 Options:
 - `-l, --list <playlist>`: Specify a particular playlist by its ID, URL or INDEX
-- `-f, --filter <inputs>`: Filter songs using keywords and sort by relevance
-- `-m, --match <level>`: Filter match threshold (0-100, default: 45)
+- `-f, --filter <filter>`: Filter songs using keywords and sort by relevance
+- `-m, --match <percent>`: Filter match threshold (0-100, default: 45)
 - `-v, --verbose`: Enable verbose output
 
 This command prompts to open the YouTube video for each of the selected songs.
@@ -249,7 +249,7 @@ Arguments (optional):
 
 Options:
 - `-l, --list <playlist>`: Specify a particular playlist by its ID, URL or INDEX
-- `-m, --match <level>`: Filter match threshold (0-100, default: 45)
+- `-m, --match <percent>`: Filter match threshold (0-100, default: 45)
 - `-s, --shuffle`: Play songs in random order
 - `-v, --verbose`: Enable verbose output
 
@@ -276,9 +276,9 @@ pypl2mp3 import -t 70 "https://www.youtube.com/playlist?list=PLP6XxNg42qDG3u8ldv
 pypl2mp3 songs -f "hendrix jim" -m 25
 ```
 
-**Interactively tag shazam-unmatched "junk" songs in a given playlist**
+**Interactively fix shazam-unmatched "junk" songs in a given playlist**
 ```sh
-pypl2mp3 tag -l PLP6XxNg42qDG3u8ldvEEtWC8q0p0BLJXJ -p
+pypl2mp3 fix -l PLP6XxNg42qDG3u8ldvEEtWC8q0p0BLJXJ -p
 ```
 
 **Play random Dire Straits songs from playlist #2**

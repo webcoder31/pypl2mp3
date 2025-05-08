@@ -25,7 +25,7 @@ import sys
 # Third party packages
 from colorama import Fore, Style, init
 from rich_argparse import RichHelpFormatter
-from rich.markdown import Markdown # NOTE: installed along with rich_argparse package
+from rich.markdown import Markdown # NOTE: installed with rich_argparse package
 
 # pypl2mp3 libs
 from pypl2mp3.libs.logger import logger
@@ -91,7 +91,7 @@ def _run_list_songs(args: argparse.Namespace) -> None:
     list_songs(args)
 
 
-def _run_list_junk_songs(args: argparse.Namespace) -> None:
+def _run_list_junks(args: argparse.Namespace) -> None:
     """
     Runner for the "junks" command.
 
@@ -99,32 +99,32 @@ def _run_list_junk_songs(args: argparse.Namespace) -> None:
         args: Parsed arguments.
     """
 
-    from pypl2mp3.commands.list_junk_songs import list_junk_songs
-    list_junk_songs(args)
+    from pypl2mp3.commands.list_junks import list_junks
+    list_junks(args)
 
 
-async def _run_tag_junk_songs(args: argparse.Namespace) -> None:
+async def _run_fix_junks(args: argparse.Namespace) -> None:
     """
-    Runner for the "tag" command.
+    Runner for the "fix" command.
 
     Args:
         args: Parsed arguments.
     """
 
-    from pypl2mp3.commands.tag_junk_songs import tag_junk_songs
-    await tag_junk_songs(args)
+    from pypl2mp3.commands.fix_junks import fix_junks
+    await fix_junks(args)
 
 
-def _run_untag_songs(args: argparse.Namespace) -> None:
+def _run_junkize_songs(args: argparse.Namespace) -> None:
     """
-    Runner for the "untag" command.
+    Runner for the "junkize" command.
 
     Args:
         args: Parsed arguments.
     """
 
-    from pypl2mp3.commands.untag_songs import untag_songs
-    untag_songs(args)
+    from pypl2mp3.commands.junkize_songs import junkize_songs
+    junkize_songs(args)
 
 
 def _run_browse_videos(args: argparse.Namespace) -> None:
@@ -178,7 +178,9 @@ def main():
     if default_repository_path == None:
         default_repository_path = Path.home().joinpath("pypl2mp3")
     else:
-        default_repository_path = Path(default_repository_path.replace("~", str(Path.home())))
+        default_repository_path = Path(
+            default_repository_path.replace("~", str(Path.home()))
+        )
 
     # Get the default playlist ID from environment variable
     default_playlist_id = os.environ.get("PYPL2MP3_DEFAULT_PLAYLIST_ID")
@@ -187,14 +189,14 @@ def main():
     description_md = Markdown(
         markup=(
             f"**PYPL2MP3 - YouTube playlist MP3 converter that can "
-            "also shazam, tag and play songs.**\n"
+            "shazam, tag and also play songs.**\n"
             "\n**Features:**\n"
             "- Import songs of YouTube playlists in MP3 format\n"
             "- Automatically \"shazam\" songs for ID3 tags with cover art\n"
             "- Manually set or fix ID3 tags for unmatched songs\n"
             "- List playlists and songs with detailed information\n"
-            "- Play MP3 songs from CLI and open videos in browser\n"
-            "- Filter and sort via fuzzy search in MP3 playlists\n"
+            "- Play imported MP3s from CLI and open related videos\n"
+            "- Filter and sort songs via fuzzy search in imported playlists\n"
             "\n**Current configuration:**\n"
             f"- Repository: {default_repository_path}\n"
             f"- Favorite playlist ID: {default_playlist_id}\n"
@@ -246,7 +248,7 @@ def main():
         metavar="path", 
         type=str,
         default=str(default_repository_path),
-        help="Folder where playlists are stored (DEFAULT: \"" \
+        help="Folder where playlists are stored (default: \"" \
             + str(default_repository_path) + "\")"
     )
 
@@ -266,11 +268,12 @@ def main():
         metavar="playlist", 
         type=str,
         default=default_playlist_id,
-        help=f"YouTube playlist ID or URL or INDEX (DEFAULT: \"{default_playlist_id}\")"
+        help=f"ID, URL or INDEX of a playlist to import or sync " \
+            + f"(default: \"{default_playlist_id}\")"
     )
     import_playlist_command.add_argument(
         "-f", "--filter", 
-        metavar="inputs", 
+        metavar="filter", 
         dest="keywords",
         type=str,
         default="",
@@ -278,17 +281,17 @@ def main():
     )
     import_playlist_command.add_argument(
         "-m", "--match", 
-        metavar="level", 
+        metavar="percent", 
         type=int,
         default=45,
-        help="Filter match threshold (0-100, DEFAULT: 45)"
+        help="Filter match threshold (0-100, default: 45)"
     )
     import_playlist_command.add_argument(
         "-t", "--thresh", 
-        metavar="level", 
+        metavar="percent", 
         type=int,
         default=50,
-        help="Shazam match threshold (0-100, DEFAULT: 50)"
+        help="Shazam match threshold (0-100, default: 50)"
     )
     import_playlist_command.add_argument(
         "-p", "--prompt", 
@@ -334,7 +337,7 @@ def main():
     )
     list_songs_command.add_argument(
         "-f", "--filter", 
-        metavar="inputs", 
+        metavar="filter", 
         dest="keywords",
         type=str,
         default="",
@@ -342,10 +345,10 @@ def main():
     )
     list_songs_command.add_argument(
         "-m", "--match", 
-        metavar="level", 
+        metavar="percent", 
         type=int,
         default=45,
-        help="Filter match threshold (0-100, DEFAULT: 45)"
+        help="Filter match threshold (0-100, default: 45)"
     )
     list_songs_command.add_argument(
         "-v", "--verbose", 
@@ -358,7 +361,7 @@ def main():
 
 
     # CLI parser for command "junks"
-    list_junk_songs_command = subparsers.add_parser(
+    list_junks_command = subparsers.add_parser(
         "junks", 
         parents=[shared_options_parser],
         help="List junk songs in MP3 playlists",
@@ -366,7 +369,7 @@ def main():
         epilog=epilog_md, 
         formatter_class=cliParser.formatter_class
     )
-    list_junk_songs_command.add_argument(
+    list_junks_command.add_argument(
         "-l", "--list", 
         metavar="playlist", 
         dest="playlist",
@@ -374,41 +377,41 @@ def main():
         default=None,
         help="Specify a particular playlist by its ID or URL or INDEX"
     )
-    list_junk_songs_command.add_argument(
+    list_junks_command.add_argument(
         "-f", "--filter", 
-        metavar="inputs", 
+        metavar="filter", 
         dest="keywords",
         type=str,
         default="",
         help="Filter songs using keywords and sort by relevance"
     )
-    list_junk_songs_command.add_argument(
+    list_junks_command.add_argument(
         "-m", "--match", 
-        metavar="level", 
+        metavar="percent", 
         type=int,
         default=45,
-        help="Filter match threshold (0-100, DEFAULT: 45)"
+        help="Filter match threshold (0-100, default: 45)"
     )
-    list_junk_songs_command.add_argument(
+    list_junks_command.add_argument(
         "-v", "--verbose", 
         action="store_true",
         default=False,
         help="Enable verbose output"
     )
 
-    list_junk_songs_command.set_defaults(func=_run_list_junk_songs)
+    list_junks_command.set_defaults(func=_run_list_junks)
 
 
-    # CLI parser for command "tag"
-    tag_junk_songs_command = subparsers.add_parser(
-        "tag", 
+    # CLI parser for command "fix"
+    fix_junks_command = subparsers.add_parser(
+        "fix", 
         parents=[shared_options_parser],
-        help="Tag junk songs of MP3 playlists",
+        help="Fix junk songs of MP3 playlists",
         description="Add ID3 tags and cover art then rename junk songs",
         epilog=epilog_md, 
         formatter_class=cliParser.formatter_class
     )
-    tag_junk_songs_command.add_argument(
+    fix_junks_command.add_argument(
         "-l", "--list", 
         metavar="playlist", 
         dest="playlist",
@@ -416,50 +419,50 @@ def main():
         default=None,
         help="Specify a particular playlist by its ID or URL or INDEX"
     )
-    tag_junk_songs_command.add_argument(
+    fix_junks_command.add_argument(
         "-t", "--thresh", 
-        metavar="level", 
+        metavar="percent", 
         type=int,
         default=50,
-        help="Shazam match threshold (0-100, DEFAULT: 50)"
+        help="Shazam match threshold (0-100, default: 50)"
     )
-    tag_junk_songs_command.add_argument(
+    fix_junks_command.add_argument(
         "-f", "--filter", 
-        metavar="inputs", 
+        metavar="filter", 
         dest="keywords",
         type=str,
         default="",
         help="Filter songs using keywords and sort by relevance"
     )
-    tag_junk_songs_command.add_argument(
+    fix_junks_command.add_argument(
         "-m", "--match", 
-        metavar="level", 
+        metavar="percent", 
         type=int,
         default=45,
-        help="Filter match threshold (0-100, DEFAULT: 45)"
+        help="Filter match threshold (0-100, default: 45)"
     )
-    tag_junk_songs_command.add_argument(
+    fix_junks_command.add_argument(
         "-p", "--prompt", 
         action="store_true",
         default=False,
         help="Prompt to tag each junk songs"
     )
 
-    tag_junk_songs_command.set_defaults(
-        func=lambda args: asyncio.run(_run_tag_junk_songs(args))
+    fix_junks_command.set_defaults(
+        func=lambda args: asyncio.run(_run_fix_junks(args))
     )
 
 
-    # CLI parser for command "untag"
-    untag_songs_command = subparsers.add_parser(
-        "untag", 
+    # CLI parser for command "junkize"
+    junkize_songs_command = subparsers.add_parser(
+        "junkize", 
         parents=[shared_options_parser],
-        help="Untag playlist MP3 files",
+        help="Junkise imported MP3 files",
         description="Remove ID3 tags and cover art then rename songs as junk",
         epilog=epilog_md, 
         formatter_class=cliParser.formatter_class
     )
-    untag_songs_command.add_argument(
+    junkize_songs_command.add_argument(
         "-l", "--list", 
         metavar="playlist", 
         dest="playlist",
@@ -467,29 +470,29 @@ def main():
         default=None,
         help="Specify a particular playlist by its ID or URL or INDEX"
     )
-    untag_songs_command.add_argument(
+    junkize_songs_command.add_argument(
         "-f", "--filter", 
-        metavar="inputs", 
+        metavar="filter", 
         dest="keywords",
         type=str,
         default="",
         help="Filter songs using keywords and sort by relevance"
     )
-    untag_songs_command.add_argument(
+    junkize_songs_command.add_argument(
         "-m", "--match", 
-        metavar="level", 
+        metavar="percent", 
         type=int,
         default=45,
-        help="Filter match threshold (0-100, DEFAULT: 45)"
+        help="Filter match threshold (0-100, default: 45)"
     )
-    untag_songs_command.add_argument(
+    junkize_songs_command.add_argument(
         "-p", "--prompt", 
         action="store_true",
         default=False,
-        help="Prompt to untag each songs"
+        help="Prompt to junkize each songs"
     )
 
-    untag_songs_command.set_defaults(func=_run_untag_songs)
+    junkize_songs_command.set_defaults(func=_run_junkize_songs)
 
 
     # CLI parser for command "videos"
@@ -511,7 +514,7 @@ def main():
     )
     browse_videos_command.add_argument(
         "-f", "--filter", 
-        metavar="inputs", 
+        metavar="filter", 
         dest="keywords",
         type=str,
         default="",
@@ -519,10 +522,10 @@ def main():
     )
     browse_videos_command.add_argument(
         "-m", "--match", 
-        metavar="level", 
+        metavar="percent", 
         type=int,
         default=45,
-        help="Filter match threshold (0-100, DEFAULT: 45)"
+        help="Filter match threshold (0-100, default: 45)"
     )
     browse_videos_command.add_argument(
         "-v", "--verbose", 
@@ -553,10 +556,10 @@ def main():
     )
     play_songs_command.add_argument(
         "-m", "--match", 
-        metavar="level", 
+        metavar="percent", 
         type=int,
         default=45,
-        help="Filter match threshold (0-100, DEFAULT: 45)"
+        help="Filter match threshold (0-100, default: 45)"
     )
     play_songs_command.add_argument(
         "index", 
@@ -595,7 +598,8 @@ def main():
     print()
     args = cliParser.parse_args(args=None if sys.argv[1:] else ["--help"])
 
-    # Automatically reset sequences to turn off color changes at the end of every print
+    # Automatically reset sequences to turn off 
+    # color changes at the end of every print
     init(autoreset = True)
 
     # Set up debug logging
@@ -633,7 +637,7 @@ def main():
         + f"{Fore.LIGHTBLUE_EX}{default_playlist_id}")
 
     # Check required binaries for relevant commands
-    if args.command in {"import", "tag", "untag"}:
+    if args.command in {"import", "fix", "junkize"}:
         _check_required_binaries(["ffmpeg", "ffprobe", "node"])
 
     # Execute appropriate command runner
@@ -641,17 +645,21 @@ def main():
         args.func(args)
     except KeyboardInterrupt:
         # Handle CTRL+C (SIGINT) to exit properly
-        print()
-        logger.info("User interrupted the command execution - Exiting")
+        logger.info(
+            f"User interrupted the \"{args.command}\" command execution"
+        )
     except Exception as error:
         # Catch any unhandled error
         print()
-        logger.critical(error, f"The command encountered unhandled error - Exiting")
+        logger.critical(
+            error, 
+            f"The \"{args.command}\" command failed due to a critical error"
+        )
 
     # Log end of program execution
     end_date = (datetime.datetime.now()).time().strftime('%H:%M:%S')
     logger.info("PYPL2MP3 finished at " + end_date)
-    print(f"\n{Fore.LIGHTGREEN_EX}PYPL2MP3 FINISHED AT {end_date}\n\n")
+    print(f"\n{Fore.LIGHTGREEN_EX}PYPL2MP3 FINISHED AT {end_date}\n")
 
 
 # Main entry point
