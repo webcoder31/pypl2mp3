@@ -20,7 +20,6 @@ import datetime
 import os
 from pathlib import Path
 import shutil
-import signal
 import sys
 
 # Third party packages
@@ -29,17 +28,7 @@ from rich_argparse import RichHelpFormatter
 from rich.markdown import Markdown # NOTE: installed along with rich_argparse package
 
 # pypl2mp3 libs
-from pypl2mp3.libs.song import SongError
-
-
-def _handle_sigint(signal, frame = None):
-    """
-    Handle CTRL+C (sigint) to exit properly
-    """
-
-    sys.stderr.write(f"\n\n{Fore.RED}PYPL2MP3 EXITED AT " 
-        + f"{(datetime.datetime.now()).time().strftime('%H:%M:%S')}{Fore.RESET}\n\n")
-    sys.exit(0)
+from pypl2mp3.libs.logger import logger
 
 
 def _check_required_binaries(commands: list[str]) -> None:
@@ -58,10 +47,11 @@ def _check_required_binaries(commands: list[str]) -> None:
     for cmd in commands:
 
         if shutil.which(cmd) is None:
-            sys.stderr.write(f"Error: PYPL2MP3 requires \"{cmd}\" to be installed\n")
+            sys.stderr.write(f"PYPL2MP3 requires \"{cmd}\" to be installed.\n")
             missing = True
 
     if missing:
+        sys.stderr.write(f"\nPlease, install missing stuff.\n")
         sys.exit(1)
 
 
@@ -74,12 +64,7 @@ async def _run_import_playlist(args: argparse.Namespace) -> None:
     """
 
     from pypl2mp3.commands.import_playlist import import_playlist
-
-    try:
-        await import_playlist(args)
-    except KeyboardInterrupt:
-        sys.stdout.write("\010\010  ")
-        _handle_sigint(signal.SIGINT)
+    await import_playlist(args)
 
 
 def _run_list_playlists(args: argparse.Namespace) -> None:
@@ -91,9 +76,6 @@ def _run_list_playlists(args: argparse.Namespace) -> None:
     """
 
     from pypl2mp3.commands.list_playlists import list_playlists
-
-    signal.signal(signal.SIGINT, _handle_sigint)
-    signal.signal(signal.SIGTERM, _handle_sigint)
     list_playlists(args)
 
 
@@ -106,9 +88,6 @@ def _run_list_songs(args: argparse.Namespace) -> None:
     """
 
     from pypl2mp3.commands.list_songs import list_songs
-
-    signal.signal(signal.SIGINT, _handle_sigint)
-    signal.signal(signal.SIGTERM, _handle_sigint)
     list_songs(args)
 
 
@@ -119,10 +98,8 @@ def _run_list_junk_songs(args: argparse.Namespace) -> None:
     Args:
         args: Parsed arguments.
     """
-    from pypl2mp3.commands.list_junk_songs import list_junk_songs
 
-    signal.signal(signal.SIGINT, _handle_sigint)
-    signal.signal(signal.SIGTERM, _handle_sigint)
+    from pypl2mp3.commands.list_junk_songs import list_junk_songs
     list_junk_songs(args)
 
 
@@ -135,12 +112,7 @@ async def _run_tag_junk_songs(args: argparse.Namespace) -> None:
     """
 
     from pypl2mp3.commands.tag_junk_songs import tag_junk_songs
-
-    try:
-        await tag_junk_songs(args)
-    except KeyboardInterrupt:
-        sys.stdout.write("\010\010  ")
-        _handle_sigint(signal.SIGINT)
+    await tag_junk_songs(args)
 
 
 def _run_untag_songs(args: argparse.Namespace) -> None:
@@ -152,9 +124,6 @@ def _run_untag_songs(args: argparse.Namespace) -> None:
     """
 
     from pypl2mp3.commands.untag_songs import untag_songs
-
-    signal.signal(signal.SIGINT, _handle_sigint)
-    signal.signal(signal.SIGTERM, _handle_sigint)
     untag_songs(args)
 
 
@@ -167,9 +136,6 @@ def _run_browse_videos(args: argparse.Namespace) -> None:
     """
 
     from pypl2mp3.commands.browse_videos import browse_videos
-    
-    signal.signal(signal.SIGINT, _handle_sigint)
-    signal.signal(signal.SIGTERM, _handle_sigint)
     browse_videos(args)
 
 
@@ -182,12 +148,7 @@ def _run_play_songs(args: argparse.Namespace) -> None:
     """
 
     from pypl2mp3.commands.play_songs import play_songs
-
-    try:
-        play_songs(args)
-    except KeyboardInterrupt:
-        sys.stdout.write("\010\010  ")
-        _handle_sigint(signal.SIGINT)
+    play_songs(args)
 
 
 class CliParser(argparse.ArgumentParser):
@@ -200,7 +161,7 @@ class CliParser(argparse.ArgumentParser):
         Custom error handler for argument parser
         """
         
-        sys.stderr.write(f"{Fore.RED}Error: {message}{Fore.RESET}\n\n")
+        sys.stderr.write(f"{Fore.RED}Error: {message}\n\n")
         self.print_usage()
         print("\n ")
         sys.exit(2)
@@ -212,12 +173,12 @@ def main():
     """
 
     # Get the default repository path from environment variable or user home
-    defaul_rRepository_path = os.environ.get("PYPL2MP3_DEFAULT_REPOSITORY_PATH")
+    default_repository_path = os.environ.get("PYPL2MP3_DEFAULT_REPOSITORY_PATH")
 
-    if defaul_rRepository_path == None:
-        defaul_rRepository_path = Path.home().joinpath("pypl2mp3")
+    if default_repository_path == None:
+        default_repository_path = Path.home().joinpath("pypl2mp3")
     else:
-        defaul_rRepository_path = Path(defaul_rRepository_path.replace("~", str(Path.home())))
+        default_repository_path = Path(default_repository_path.replace("~", str(Path.home())))
 
     # Get the default playlist ID from environment variable
     default_playlist_id = os.environ.get("PYPL2MP3_DEFAULT_PLAYLIST_ID")
@@ -235,7 +196,7 @@ def main():
             "- Play MP3 songs from CLI and open videos in browser\n"
             "- Filter and sort via fuzzy search in MP3 playlists\n"
             "\n**Current configuration:**\n"
-            f"- Repository: {defaul_rRepository_path}\n"
+            f"- Repository: {default_repository_path}\n"
             f"- Favorite playlist ID: {default_playlist_id}\n"
         )
     )
@@ -268,12 +229,25 @@ def main():
     # Set options shared by all program commands
     shared_options_parser = argparse.ArgumentParser(add_help=False)
     shared_options_parser.add_argument(
+        "-d", "--debug",
+        action="store_true",
+        default=False,
+        help="Enable verbose errors in console and logging to \"" \
+            + str(default_repository_path) + "/pypl2mp3.log\""
+    )
+    shared_options_parser.add_argument(
+        "-D", "--deep",
+        action="store_true",
+        default=False,
+        help="Enable deep debug with traceback and stack trace in log file"
+    )
+    shared_options_parser.add_argument(
         "-r", "--repo", 
         metavar="path", 
         type=str,
-        default=str(defaul_rRepository_path),
+        default=str(default_repository_path),
         help="Folder where playlists are stored (DEFAULT: \"" \
-            + str(defaul_rRepository_path) + "\")"
+            + str(default_repository_path) + "\")"
     )
 
 
@@ -384,7 +358,7 @@ def main():
 
 
     # CLI parser for command "junks"
-    list_junk_ongs_command = subparsers.add_parser(
+    list_junk_songs_command = subparsers.add_parser(
         "junks", 
         parents=[shared_options_parser],
         help="List junk songs in MP3 playlists",
@@ -392,7 +366,7 @@ def main():
         epilog=epilog_md, 
         formatter_class=cliParser.formatter_class
     )
-    list_junk_ongs_command.add_argument(
+    list_junk_songs_command.add_argument(
         "-l", "--list", 
         metavar="playlist", 
         dest="playlist",
@@ -400,7 +374,7 @@ def main():
         default=None,
         help="Specify a particular playlist by its ID or URL or INDEX"
     )
-    list_junk_ongs_command.add_argument(
+    list_junk_songs_command.add_argument(
         "-f", "--filter", 
         metavar="inputs", 
         dest="keywords",
@@ -408,25 +382,25 @@ def main():
         default="",
         help="Filter songs using keywords and sort by relevance"
     )
-    list_junk_ongs_command.add_argument(
+    list_junk_songs_command.add_argument(
         "-m", "--match", 
         metavar="level", 
         type=int,
         default=45,
         help="Filter match threshold (0-100, DEFAULT: 45)"
     )
-    list_junk_ongs_command.add_argument(
+    list_junk_songs_command.add_argument(
         "-v", "--verbose", 
         action="store_true",
         default=False,
         help="Enable verbose output"
     )
 
-    list_junk_ongs_command.set_defaults(func=_run_list_junk_songs)
+    list_junk_songs_command.set_defaults(func=_run_list_junk_songs)
 
 
     # CLI parser for command "tag"
-    tag_unk_songs_command = subparsers.add_parser(
+    tag_junk_songs_command = subparsers.add_parser(
         "tag", 
         parents=[shared_options_parser],
         help="Tag junk songs of MP3 playlists",
@@ -434,7 +408,7 @@ def main():
         epilog=epilog_md, 
         formatter_class=cliParser.formatter_class
     )
-    tag_unk_songs_command.add_argument(
+    tag_junk_songs_command.add_argument(
         "-l", "--list", 
         metavar="playlist", 
         dest="playlist",
@@ -442,14 +416,14 @@ def main():
         default=None,
         help="Specify a particular playlist by its ID or URL or INDEX"
     )
-    tag_unk_songs_command.add_argument(
+    tag_junk_songs_command.add_argument(
         "-t", "--thresh", 
         metavar="level", 
         type=int,
         default=50,
         help="Shazam match threshold (0-100, DEFAULT: 50)"
     )
-    tag_unk_songs_command.add_argument(
+    tag_junk_songs_command.add_argument(
         "-f", "--filter", 
         metavar="inputs", 
         dest="keywords",
@@ -457,21 +431,21 @@ def main():
         default="",
         help="Filter songs using keywords and sort by relevance"
     )
-    tag_unk_songs_command.add_argument(
+    tag_junk_songs_command.add_argument(
         "-m", "--match", 
         metavar="level", 
         type=int,
         default=45,
         help="Filter match threshold (0-100, DEFAULT: 45)"
     )
-    tag_unk_songs_command.add_argument(
+    tag_junk_songs_command.add_argument(
         "-p", "--prompt", 
         action="store_true",
         default=False,
         help="Prompt to tag each junk songs"
     )
 
-    tag_unk_songs_command.set_defaults(
+    tag_junk_songs_command.set_defaults(
         func=lambda args: asyncio.run(_run_tag_junk_songs(args))
     )
 
@@ -624,35 +598,60 @@ def main():
     # Automatically reset sequences to turn off color changes at the end of every print
     init(autoreset = True)
 
-    # Log start of program execution
-    print(f"{Fore.LIGHTGREEN_EX}PYPL2MP3 STARTED AT " 
-        + f"{(datetime.datetime.now()).time().strftime('%H:%M:%S')}{Fore.RESET}\n")
-    
-    print(f"{Fore.WHITE + Style.DIM} ⇨ Playlists repository:  {Style.RESET_ALL}"
-        + f"{Fore.LIGHTBLUE_EX}{defaul_rRepository_path}{Fore.RESET}")
-    
-    print(f"{Fore.WHITE + Style.DIM} ⇨ Favorite playlist ID:  {Style.RESET_ALL}"
-        + f"{Fore.LIGHTBLUE_EX}{default_playlist_id}{Fore.RESET}")
+    # Set up debug logging
+    if args.debug or args.deep:
 
-    # Check binaries for relevant commands
+        # Check if the repository path exists, if not create it
+        if not os.path.exists(default_repository_path):
+            os.makedirs(default_repository_path, exist_ok=True)
+
+        # Enable verbose errors in console and logging
+        logger.enable_verbose_errors()
+
+        # Enable logging to file
+        # NOTE: the log file is created in the repository path
+        logger.enable_file_handler(
+            log_file=Path(default_repository_path).joinpath("pypl2mp3.log"),
+            enable_traceback=args.deep
+        )
+
+    # Log start of program execution
+    start_date = (datetime.datetime.now()).time().strftime('%H:%M:%S')
+    logger.info("PYPL2MP3 started at " + start_date)
+    print(f"{Fore.LIGHTGREEN_EX}PYPL2MP3 STARTED AT {start_date}\n")
+    
+    # Print the current configuration
+    logger.info("Current configuration: " 
+        + f"command={args.command}, "
+        + f"repository={default_repository_path}, "
+        + f"playlist_id={default_playlist_id}"
+    )
+    print(f"{Fore.WHITE + Style.DIM}⇨ Playlists repository:  {Style.NORMAL}"
+        + f"{Fore.LIGHTBLUE_EX}{default_repository_path}")
+    
+    print(f"{Fore.WHITE + Style.DIM}⇨ Favorite playlist ID:  {Style.NORMAL}"
+        + f"{Fore.LIGHTBLUE_EX}{default_playlist_id}")
+
+    # Check required binaries for relevant commands
     if args.command in {"import", "tag", "untag"}:
         _check_required_binaries(["ffmpeg", "ffprobe", "node"])
 
     # Execute appropriate command runner
     try:
         args.func(args)
-    except SongError as error:
-        # Catch any Song error, print it and exit
-        print(f"\n{Fore.RED}FATAL ERROR!", error, f"{Fore.RESET}")
-        # raise
+    except KeyboardInterrupt:
+        # Handle CTRL+C (SIGINT) to exit properly
+        print()
+        logger.info("User interrupted the command execution - Exiting")
     except Exception as error:
-        # Catch any unhandled error, print it and raise it
-        print(f"\n{Fore.RED}FATAL ERROR!", type(error).__name__, "-", error, f"{Fore.RESET}")
-        raise
+        # Catch any unhandled error
+        print()
+        logger.critical(error, f"The command encountered unhandled error - Exiting")
 
     # Log end of program execution
-    print(f"\n{Fore.LIGHTGREEN_EX}PYPL2MP3 FINISHED AT " 
-        + f"{(datetime.datetime.now()).time().strftime('%H:%M:%S')}{Fore.RESET}\n\n")
+    end_date = (datetime.datetime.now()).time().strftime('%H:%M:%S')
+    logger.info("PYPL2MP3 finished at " + end_date)
+    print(f"\n{Fore.LIGHTGREEN_EX}PYPL2MP3 FINISHED AT {end_date}\n\n")
 
 
 # Main entry point

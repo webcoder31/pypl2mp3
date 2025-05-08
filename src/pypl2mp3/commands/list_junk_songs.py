@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 PYPL2MP3: YouTube playlist MP3 converter and player,
 with Shazam song identification and tagging capabilities.
@@ -42,22 +41,7 @@ def list_junk_songs(args: Any) -> None:
         FileNotFoundError: If repository path doesn't exist
     """
 
-    song_files = _get_filtered_junk_song_files(args)
-    _display_song_information(song_files, args.verbose)
-
-
-def _get_filtered_junk_song_files(args: Any) -> List[Path]:
-    """
-    Retrieve junk song files matching the given criteria.
-    
-    Args:
-        args: Command line arguments
-    
-    Returns:
-        List of matching junk song file paths
-    """
-
-    return get_repository_song_files(
+    song_files = get_repository_song_files(
         Path(args.repo),
         junk_only=True,
         keywords=args.keywords,
@@ -66,13 +50,19 @@ def _get_filtered_junk_song_files(args: Any) -> List[Path]:
         display_summary=True
     )
 
+    if not song_files:
+        print(f"{Fore.YELLOW}No matching junk songs found.{Fore.RESET}")
+        return
+
+    _display_song_information(song_files, args.verbose)
+
 
 def _display_song_information(song_files: list[str], verbose: bool) -> None:
     """
     Display information about songs, either in brief or verbose format.
 
     Args:
-        song_files: List of song file paths
+        song_files: List of paths to song files
         verbose: Whether to show detailed information
     """
 
@@ -81,9 +71,9 @@ def _display_song_information(song_files: list[str], verbose: bool) -> None:
 
     progress_counter = ProgressCounter(len(song_files))
     
-    for index, song_path in enumerate(song_files, 1):
+    for index, song_file in enumerate(song_files, 1):
         counter = progress_counter.format(index)
-        song = SongModel(song_path)
+        song = SongModel(song_file)
         
         print(("", "\n")[verbose] + format_song_display(counter, song))
         

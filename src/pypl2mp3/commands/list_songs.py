@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 PYPL2MP3: YouTube playlist MP3 converter and player,
 with Shazam song identification and tagging capabilities.
@@ -14,7 +13,7 @@ Repository: https://github.com/webcoder31/pypl2mp3
 
 # Python core modules
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 # Third party packages
 from colorama import Fore
@@ -41,26 +40,7 @@ def list_songs(args: Any) -> None:
         FileNotFoundError: If the repository path doesn't exist
     """
 
-    song_files = _get_filtered_songs(args)
-    
-    if not args.verbose:
-        print()
-    
-    _display_songs(song_files, args.verbose)
-
-
-def _get_filtered_songs(args: Any) -> List[Path]:
-    """
-    Retrieve song files matching the given criteria.
-    
-    Args:
-        args: Command line arguments
-    
-    Returns:
-        List of matching song file paths
-    """
-
-    return get_repository_song_files(
+    song_files = get_repository_song_files(
         Path(args.repo),
         keywords=args.keywords,
         filter_match_threshold=args.match,
@@ -68,21 +48,30 @@ def _get_filtered_songs(args: Any) -> List[Path]:
         display_summary=True
     )
 
+    if not song_files:
+        print(f"{Fore.YELLOW}No matching songs found.{Fore.RESET}")
+        return
+    
+    if not args.verbose:
+        print()
+    
+    _display_songs(song_files, args.verbose)
 
-def _display_songs(song_files: list[str], verbose: bool) -> None:
+
+def _display_songs(song_files: list[Path], verbose: bool) -> None:
     """
     Display song information with optional verbose details.
 
     Args:
-        song_files: List of song file paths to display
+        song_files: List of paths to song files
         verbose: Whether to show detailed information
     """
 
     progress_counter = ProgressCounter(len(song_files))
     
-    for index, song_path in enumerate(song_files, 1):
+    for index, song_file in enumerate(song_files, 1):
         counter = progress_counter.format(index)
-        song = SongModel(song_path)
+        song = SongModel(song_file)
         
         print(("", "\n")[verbose] + format_song_display(counter, song))
         

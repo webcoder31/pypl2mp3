@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 PYPL2MP3: YouTube playlist MP3 converter and player,
 with Shazam song identification and tagging capabilities.
@@ -38,49 +37,35 @@ def browse_videos(args: Any) -> None:
             - verbose: Verbose output flag
     """
 
-    songs = _get_filtered_songs(args)
-    
-    if not songs:
-        print(f"{Fore.YELLOW}No matching songs found.{Fore.RESET}")
-        return
-
-    _process_songs(songs, args.verbose)
-
-
-def _get_filtered_songs(args: Any) -> List[Path]:
-    """
-    Retrieve song files matching the given criteria.
-    
-    Args:
-        args: Command line arguments
-    
-    Returns:
-        List of matching song file paths
-    """
-
-    return get_repository_song_files(
+    song_files = get_repository_song_files(
         Path(args.repo),
         keywords=args.keywords,
         filter_match_threshold=args.match,
         playlist_identifier=args.playlist,
         display_summary=True
     )
+    
+    if not song_files:
+        print(f"{Fore.YELLOW}No matching songs found.{Fore.RESET}")
+        return
+
+    _process_songs(song_files, args.verbose)
 
 
-def _process_songs(song_paths: List[Path], verbose: bool) -> None:
+def _process_songs(song_files: List[Path], verbose: bool) -> None:
     """
     Process each song, displaying information and handling URL opening.
     
     Args:
-        song_paths: List of paths to song files
+        song_files: List of paths to song files
         verbose: Whether to display detailed information
     """
 
-    progress = ProgressCounter(len(song_paths))
+    progress = ProgressCounter(len(song_files))
     label_formatter = LabelFormatter(9)
 
-    for index, song_path in enumerate(song_paths, 1):
-        song = SongModel(song_path)
+    for index, song_file in enumerate(song_files, 1):
+        song = SongModel(song_file)
         counter = progress.format(index)
         
         print(f"\n{format_song_display(counter, song)}")

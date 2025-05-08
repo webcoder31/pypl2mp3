@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 PYPL2MP3: YouTube playlist MP3 converter and player,
 with Shazam song identification and tagging capabilities.
@@ -27,12 +26,21 @@ from urllib.parse import parse_qs, urlparse
 from colorama import Back, Fore, Style
 
 # pypl2mp3 libs
-from pypl2mp3.libs.song import SongModel, SongError
+from pypl2mp3.libs.exceptions import AppBaseException
+from pypl2mp3.libs.logger import logger
+from pypl2mp3.libs.song import SongModel
 from pypl2mp3.libs.utils import (
     extract_youtube_id_from_filename,
     get_deterministic_sort_key,
     calculate_fuzzy_match_score,
 )
+
+
+class RepositoryException(AppBaseException):
+    """
+    Custom exception for repository errors.
+    """
+    pass
 
 
 def get_repository_playlist(
@@ -52,7 +60,10 @@ def get_repository_playlist(
         SimpleNamespace containing playlist details (id, url, exists, folder, path, name)
 
     Raises:
-        SongError: If playlist index is invalid or playlist doesn't exist when must_exist=True
+        RepositoryError: 
+            - If playlist ID format is invalid 
+            - or provided optional playlist index is out of range 
+            - or playlist doesn't exist in the repository when must_exist=True
     """
 
     def _get_playlist_folders() -> List[str]:
@@ -85,6 +96,9 @@ def get_repository_playlist(
 
         Returns:
             Extracted playlist ID
+
+        Raises:
+            RepositoryError: If the playlist ID format is invalid
         """
 
         # Try to extract the playlist ID from the identifier handled as a URL
@@ -100,7 +114,7 @@ def get_repository_playlist(
         # The ID should be alphanumeric and between 16 to 34 characters long
         # (YouTube playlist IDs are typically 34 characters long)
         if re.match(r"^[A-Za-z0-9_-]{16,34}$", playlist_id) is None:
-            raise SongError("Invalid playlist ID format.")
+            raise RepositoryException("Invalid playlist ID format.")
 
         return playlist_id
 
@@ -113,7 +127,7 @@ def get_repository_playlist(
 
         # If playlist index is out of range, raise an error
         if not (0 <= index < len(playlist_folders)):
-            raise SongError("Playlist index is out of range.")
+            raise RepositoryException("Playlist index is out of range.")
         
         # If index is valid, return the corresponding playlist
         folder = playlist_folders[index]
@@ -136,13 +150,13 @@ def get_repository_playlist(
     
     # If multiple folders match the playlist ID, raise an error
     if len(matching_folders) > 1:
-        raise SongError("Multiple playlists match YouTube ID in repository.")
+        raise RepositoryException("Multiple playlists match YouTube ID in repository.")
     
     if not matching_folders:
 
         # If no matching folders are found and must_exist is True, raise an error
         if must_exist:
-            raise SongError("Playlist does not exist in repository.")
+            raise RepositoryException("Expected playlist does not exist in repository.")
         
         # If no matching folders are found and must_exist is False, 
         # return a blank playlist object to be used for importing a new playlist
@@ -189,10 +203,10 @@ def get_repository_song_files(
         display_summary: If True, print search criteria and results
 
     Returns:
-        List of paths to matching song files
+        List of paths to matching song files or None if no songs are found
 
     Raises:
-        SongError: If no songs are found or index is out of range
+        RepositoryError: If provided optional song index is out of range
     """
 
     search_path = repository_path
@@ -212,16 +226,16 @@ def get_repository_song_files(
         junk_only
     )
 
-    # If no songs are found, raise an error
+    # If no songs are found, return None
     if not song_files:
-        raise SongError("No songs found.")
+        return None
 
     # If a specific song index is provided, filter the list
     if song_index is not None:
 
         # If song index is out of range, raise an error
         if not (0 <= song_index <= len(song_files)):
-            raise SongError("Song index is out of range.")
+            raise RepositoryException("Song index is out of range.")
         
         # If song index is 0, select a random song
         index = random.randint(0, len(song_files) - 1) if song_index == 0 else song_index - 1
@@ -252,6 +266,16 @@ def _find_matching_songs(
     """
     Find and sort song files based on search criteria and match scores.
 
+    This function searches for song files in the specified path,
+    filters them based on keywords and match scores, and returns
+    a sorted list of matching song file paths. The search can be
+    restricted to junk songs only if specified.
+
+    If no keywords are provided, the function will return all
+    song files sorted by name. If keywords are provided, the
+    function will filter the song files based on normalized match
+    score and return only those that meet the specified threshold.
+
     Args:
         search_path: Path to search for song files
         keywords: Search terms to filter songs
@@ -259,10 +283,7 @@ def _find_matching_songs(
         junk_only: If True, only return songs marked as junk
 
     Returns:
-        List of paths to matching song files
-
-    Raises:
-        SongError: If no songs are found
+        List of paths to matching song files or None if no songs are found
     """
     
     # Get all valid song files with YouTube IDs
@@ -271,6 +292,10 @@ def _find_matching_songs(
         path for path in search_path.rglob(file_pattern)
             if extract_youtube_id_from_filename(path.name)
     ]
+
+    # If no song files are found, return None
+    if not song_files:
+        return None
 
     if not keywords:
         # If no keywords are provided, return songs sorted by name
@@ -300,7 +325,9 @@ def _sort_songs_by_name(song_files: List[Path]) -> List[Path]:
                 "path": path,
                 "name": f"{song.artist} - {song.title}"
             })
-        except Exception:
+        except Exception as exc:
+            # Handle exceptions when reading song metadata
+            logger.error(exc, f"Unable to read metadata for song \"{path}\“ - skipping.")
             # Skip files that cannot be read as songs
             continue
     
@@ -319,7 +346,7 @@ def _filter_and_sort_songs_by_match_score(
     threshold: float
 ) -> List[Path]:
     """
-    Filter and sort songs based on keyword match scores.
+    Filter and sort songs based on normalized keyword match scores.
 
     Args:
         song_files: List of song file paths
@@ -328,9 +355,6 @@ def _filter_and_sort_songs_by_match_score(
 
     Returns:
         List of filtered and sorted song file paths
-
-    Raises:
-        SongError: If song metadata cannot be read
     """
     
     # Create a list of song objects with their paths and match scores
@@ -339,18 +363,20 @@ def _filter_and_sort_songs_by_match_score(
         try:
             song = SongModel(path)
             match_level = calculate_fuzzy_match_score(song.artist, song.title, keywords)
-
             if match_level > 0:
                 matched_songs.append({"path": path, "match_level": match_level})
-        except Exception:
+        except Exception as exc:
+            # Handle exceptions when reading song metadata
+            logger.error(exc, f"Unable to read metadata for song \"{path}\“ - skipping.")
             # Skip files that cannot be read as songs
             continue
 
     if not matched_songs:
-        # If no songs match the criteria, return an empty list
-        return []
+        # If no songs match the criteria, return None
+        return None
 
-    # if songs match the criteria, return them filterd and sorted by match score
+    # if songs match the criteria, return them filterd 
+    # and sorted by normalized match score
     return _normalize_and_filter_song_matches(matched_songs, threshold)
 
 
@@ -362,17 +388,15 @@ def _normalize_and_filter_song_matches(
     Normalize song match scores and filter based on threshold.
 
     Args:
-        matched_songs: List of matched songs with scores
-        threshold: Minimum match score for filtering
+        matched_songs: List of matched songs with scores to normalize
+        threshold: Minimum normalized score for final filtering
 
     Returns:
-        List of filtered song file paths sorted by match score
-
-    Raises:
-        SongError: If no songs are found after filtering
+        List of filtered song file paths sorted by match score or None if no matches
     """
 
-    # Sort matched songs by match level in descending order
+    # First, sort matched songs by match level in descending order
+    # to preserve the original order for normalization
     matched_songs.sort(key=lambda s: s["match_level"], reverse=True)
     
     # Calculate the minimum and maximum match scores
@@ -387,10 +411,17 @@ def _normalize_and_filter_song_matches(
         song["match_level"] = (math.sqrt(raw_score) / math.sqrt(score_range or 1)) * 100
 
     # Return songs that meet the threshold criteria
-    return [
+    matching_songs = [
         song["path"] for song in matched_songs
         if song["match_level"] >= threshold
     ]
+
+    # If no songs match the criteria, return None
+    if not matching_songs:
+        return None
+    
+    # If songs match the criteria, return them sorted by match score
+    return matching_songs
 
 
 def _display_song_search_summary(

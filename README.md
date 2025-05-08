@@ -1,7 +1,7 @@
 
-# YouTube playlist MP3 converter<br>that can also shazam, tag and play songs
+# YouTube playlist MP3 converter<br>that can shazam, tag and also play songs
 
-**PYPL2MP3** is a Python program that downloads audio from entire YouTube playlists and saves the tracks in MP3 format with shazam-confirmed ID3 tags and proper cover art.
+**PYPL2MP3** is a Python program that one-shot downloads audio from **entire YouTube playlists** and saves the tracks in MP3 format with shazam-confirmed ID3 tags and proper cover art. It also allows you to play imported MP3s, search for songs across all imported playlists, manage metadata, and much more.
 
 The program runs from the command line and is designed for a clean and user-friendly experience.
 
@@ -28,10 +28,11 @@ The program runs from the command line and is designed for a clean and user-frie
 
 - Import YouTube playlist songs in MP3 format  
 - Automatically shazam songs to set accurate ID3 tags and cover art  
-- Manually set metadata to shazam-unmatched "junk" songs
+- Consistently name MP3 files by artist and song title
+- Fix metadata to shazam-unmatched "junk" songs
 - Cleanup existing metadata from imported songs
 - List songs and playlists with detailed information  
-- Play songs directly from the CLI or open their YouTube videos  
+- Easily play songs directly from the CLI and open related videos
 - Filter and sort songs via fuzzy search (available for all commands)  
 
 ---
@@ -61,7 +62,7 @@ PYPL2MP3 requires:
 ### Proof of Origin Token
 
 - A Proof of Origin Token (POT) is needed to access YouTube audio / video streams (&nbsp;→&nbsp;[details here](https://pytubefix.readthedocs.io/en/latest/user/po_token.html)&nbsp;).  
-- It is automatically generated via BotGuard from `pytubefix` version `8.12` and requires [`Node.js`](https://nodejs.org/en/download) to be installed.  
+- It is automatically generated via **BotGuard** from `pytubefix` version `8.12` and requires [`Node.js`](https://nodejs.org/en/download) to be installed.  
 
 ---
 
@@ -131,9 +132,17 @@ sh /path/to/pypl2mp3.sh <command> [options]
 
 
 ### Global Options
-- `-r, --repo <path>`: Set playlist repository (default: see [Configuration](#configuration))  
 - `-h, --help`: Show command-specific help  
+- `-r, --repo <path>`: Set playlist repository (default: see [Configuration](#configuration))  
+- `-d, --debug`: Enable **verbose errors (*)** and logging to file `/repo/path/pypl2mp3.log`
+- `-D, --deep`: Enable deep debug with fully detailed stack trace in log file
 
+**(*) Verbose errors** display a shortened version of the stack trace:
+```
+[ERROR] Failed to import song "LANA DEL REY - COLA (OFFICIAL AUDIO)"
+        [2] pypl2mp3.libs.song.SongModelException: Failed to stream audio track for YouTube video "UtVUkZ4Rx_I"
+        [1] pytubefix.exceptions.AgeRestrictedError: UtVUkZ4Rx_I is age restricted, and can't be accessed without logging in.
+```
 ---
 
 ### `import` – Import songs from a YouTube playlist
@@ -143,7 +152,7 @@ pypl2mp3 import [options] <playlist>
 Arguments (may be optional if a favorite playlist is configured):
 - `playlist`: ID, URL or INDEX of a playlist to import (default: see [Configuration](#configuration))
   
-  **TIP:** *Song URLs are also accepted; the playlist ID will be extracted from them.*
+  **Note:** *Song URLs are also accepted; the playlist ID will be extracted from them.*
 
 Options:
 - `-f, --filter <inputs>`: Filter songs to import using keywords

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 PYPL2MP3: YouTube playlist MP3 converter and player,
 with Shazam song identification and tagging capabilities.
@@ -43,9 +42,16 @@ def untag_songs(args: Any) -> None:
     should_prompt_per_song = args.prompt
     
     # Get list of songs matching criteria
-    song_files = _get_filtered_songs(args)
+    song_files = get_repository_song_files(
+        Path(args.repo),
+        keywords=args.keywords,
+        filter_match_threshold=args.match,
+        playlist_identifier=args.playlist,
+        display_summary=True
+    )
+
     if not song_files:
-        print(f"{Fore.YELLOW}No songs found matching the criteria.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}No matching songs found.{Style.RESET_ALL}")
         return
 
     if not _confirm_bulk_operation(should_prompt_per_song):
@@ -54,25 +60,28 @@ def untag_songs(args: Any) -> None:
     _process_songs(song_files, should_prompt_per_song)
 
 
-def _get_filtered_songs(args: Any) -> List[str]:
+def _process_songs(song_files: List[Path], should_prompt_per_song: bool) -> None:
     """
-    Retrieve filtered list of songs based on search criteria.
+    Process each song file for untagging.
 
     Args:
-        args: Command line arguments
-        repository_path: Path to the song repository
-
-    Returns:
-        List[str]: List of matched song file paths
+        song_files: List of paths to song files
+        should_prompt_per_song: Whether to prompt for confirmation for each song
     """
 
-    return get_repository_song_files(
-        Path(args.repo),
-        keywords=args.keywords,
-        filter_match_threshold=args.match,
-        playlist_identifier=args.playlist,
-        display_summary=True
-    )
+    progress_counter = ProgressCounter(len(song_files))
+
+    for index, song_file in enumerate(song_files, 1):
+        counter = progress_counter.format(index)
+        song = SongModel(song_file)
+        
+        print(f"\n{format_song_display(counter, song)}  "
+            + f"{Fore.WHITE + Style.DIM}[https://youtu.be/{song.youtube_id}]")
+
+        if should_prompt_per_song and not _confirm_single_song():
+            continue
+
+        _untag_single_song(song)
 
 
 def _confirm_bulk_operation(should_prompt_per_song: bool) -> bool:
@@ -95,30 +104,6 @@ def _confirm_bulk_operation(should_prompt_per_song: bool) -> bool:
     )
 
     return confirmation.lower() == "yes"
-
-
-def _process_songs(song_files: List[str], should_prompt_per_song: bool) -> None:
-    """
-    Process each song file for untagging.
-
-    Args:
-        song_files: List of song file paths to process
-        should_prompt_per_song: Whether to prompt for confirmation for each song
-    """
-
-    progress_counter = ProgressCounter(len(song_files))
-
-    for index, song_pathname in enumerate(song_files, 1):
-        counter = progress_counter.format(index)
-        song = SongModel(song_pathname)
-        
-        print(f"\n{format_song_display(counter, song)}  "
-            + f"{Fore.WHITE + Style.DIM}[https://youtu.be/{song.youtube_id}]")
-
-        if should_prompt_per_song and not _confirm_single_song():
-            continue
-
-        _untag_single_song(song)
 
 
 def _confirm_single_song() -> bool:

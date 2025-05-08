@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 PYPL2MP3: YouTube playlist MP3 converter and player,
 with Shazam song identification and tagging capabilities.
@@ -24,8 +23,10 @@ from colorama import Fore, Back, Style
 from pytubefix import Playlist, YouTube
 
 # pypl2mp3 libs
+from pypl2mp3.libs.exceptions import AppBaseException
+from pypl2mp3.libs.logger import logger
 from pypl2mp3.libs.repository import get_repository_playlist
-from pypl2mp3.libs.song import SongModel, SongError
+from pypl2mp3.libs.song import SongModel
 from pypl2mp3.libs.utils import (
     extract_youtube_id_from_filename,
     extract_youtube_id_from_url,
@@ -34,10 +35,19 @@ from pypl2mp3.libs.utils import (
     ProgressCounter
 )
 
+class ImportPlaylistException(AppBaseException):
+    """
+    Custom exception for playlist import errors.
+    """
+    pass
+
 
 @dataclass
 class SongReport:
-    """Data structure for song processing report."""
+    """
+    Data structure for song processing report.
+    """
+
     song_name: str
     youtube_id: str
     filename: Optional[str] = None
@@ -210,7 +220,7 @@ async def _import_song(
         None: If user chooses not to import the song
         
     Raises:
-        SongError: If song creation fails
+        ImportPlaylistError: If song creation fails
     """
 
     progress_callback = _create_progress_callback(label_formatter)
@@ -286,17 +296,12 @@ async def import_playlist(args) -> None:
     # Retrieve YouTube playlist data and handle potential errors
     try:
         playlist_data = Playlist(selected_playlist.url, "WEB")
-    except Exception as error:
-
-        print(f"\n{Fore.RED}ERROR! Failed to retrieve playlist content: "
-            + f"{type(error).__name__} – {str(error)}{Fore.RESET}")
-        return
+    except Exception as exc:
+        raise ImportPlaylistException("Failed to retrieve playlist data from YouTube") from exc
 
     # Check if playlist data is empty
     if not playlist_data or not playlist_data.videos:
-        print(f"\n{Fore.RED}ERROR!{Fore.RESET} Cannot find or access "
-            + f"playlist at {selected_playlist.url}{Fore.RESET}.")
-        return
+        raise ImportPlaylistException("Playlist is empty or inaccessible. Please check the URL and try again.")
     
     # Display playlist information
     print(f"{Back.YELLOW}{Style.BRIGHT} Found {len(playlist_data.videos)} " 
@@ -308,9 +313,8 @@ async def import_playlist(args) -> None:
     playlist_path = repository_path / playlist_folder
     try:
         playlist_path.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        print(f"\n{Fore.RED}ERROR! Failed to create playlist folder \"{playlist_path}\"{Fore.RESET}.")
-        return
+    except Exception as exc:
+        raise ImportPlaylistException(f"Failed to create playlist folder: {playlist_path}") from exc
 
     # Initialize tracking sets
     existing_songs = frozenset(map(extract_youtube_id_from_filename, playlist_path.glob("*.mp3")))
@@ -349,13 +353,13 @@ async def import_playlist(args) -> None:
         # Get video details
         try:
             video = YouTube(f"https://youtube.com/watch?v={video_id}", client="WEB")
-        except Exception as error:
-            print(f"\n{Fore.RED}ERROR! Failed to retrieve video details: "
-                + f"{type(error).__name__} – {str(error)}{Fore.RESET}")
+        except Exception as exc:
+            # Log YouTube API error, append error to report and skip this video
+            logger.error(exc, f"Failed to retrieve YouTube details for video \"{video_id}\"")
             report.failed_imports.append(SongReport(
                 youtube_id=video_id,
                 song_name=f"Video ID: {video_id}",
-                issue=str(error)
+                issue=f"Failed to retrieve YouTube details ({str(exc)})"
             ))
             continue
 
@@ -385,14 +389,26 @@ async def import_playlist(args) -> None:
             + f" {Fore.BLUE}[{video.video_id}]{Style.RESET_ALL}")
         
         # Prompt user to add new song to playlist
-        if args.prompt and input(
-                f"{Style.BRIGHT}{Fore.LIGHTBLUE_EX}Do you want to import new song in playlist{Style.RESET_ALL} " 
-                + f"({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? ") != "yes":
-            report.skipped_songs.append(SongReport(
-                youtube_id = video.video_id, 
-                song_name = song_name,  
-            ))
-            continue
+        if args.prompt: 
+            try:
+                response = input(
+                    f"{Style.BRIGHT}{Fore.LIGHTBLUE_EX}Do you want to import new song in playlist{Style.RESET_ALL} " 
+                    + f"({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}/{Fore.CYAN}abort{Fore.RESET}) ? ")
+                
+                if response != "yes" and response != "abort":
+                    # Skip song if user chooses not to import
+                    report.skipped_songs.append(SongReport(
+                        youtube_id = video.video_id, 
+                        song_name = song_name,  
+                    ))
+                    continue
+                elif response == "abort":
+                    # Raise KeyboardInterrupt to stop the process
+                    raise KeyboardInterrupt()
+            except KeyboardInterrupt:
+                # Print import report and raise KeyboardInterrupt to stop the process
+                report.print_import_report(len(existing_songs), len(junk_songs))
+                raise
 
         # Import song from YouTube
         try:
@@ -419,24 +435,18 @@ async def import_playlist(args) -> None:
                     filename = song.filename
                 ))
         except KeyboardInterrupt:
-            # Handle user interruption
-            print(f"\n\n{Fore.RED}Import interrupted by user.{Fore.RESET}")
-            break
-        except Exception as error:
-            # Handle song import errors
-            print(f"{Fore.RED}{Style.BRIGHT}{type(error).__name__.upper()} - {str(error)}")
+            # Print import report and raise KeyboardInterrupt to stop the process
+            report.print_import_report(len(existing_songs), len(junk_songs))
+            raise
+        except Exception as exc:
+            # Log import error, append error to report and skip this video
+            logger.error(exc, f"Failed to import song \"{video.title}\"")
             report.failed_imports.append(SongReport(
                 youtube_id=video_id,
                 song_name=f"{video.author} - {video.title}",
-                issue=str(error)
+                issue=f"Failed to import video to MP3 ({str(exc)})"
             ))
-        
-        # Prompt user to continue or abort
-        if args.prompt and input(
-            f"{Style.BRIGHT}{Fore.LIGHTBLUE_EX}Press ENTER to continue "
-            + f"or type \"abort\" to stop importing songs:{Style.RESET_ALL} ") == "abort":
+            continue
 
-            print(f"\n{Fore.RED}Import aborted by user.{Fore.RESET}")
-            break
-
+    # Print final import report
     report.print_import_report(len(existing_songs), len(junk_songs))

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 PYPL2MP3: YouTube playlist MP3 converter and player,
 with Shazam song identification and tagging capabilities.
@@ -24,9 +23,18 @@ from colorama import Fore, Back, Style
 from pytubefix import YouTube
 
 # pypl2mp3 libs
+from pypl2mp3.libs.exceptions import AppBaseException
+from pypl2mp3.libs.logger import logger
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
 from pypl2mp3.libs.utils import LabelFormatter, ProgressCounter, format_song_display
+
+
+class TagJunkSongException(AppBaseException):
+    """
+    Custom exception for junk song metadata management errors.
+    """
+    pass
 
 
 @dataclass
@@ -214,9 +222,9 @@ class JunkSongTagger:
                     else:
                         print(self.label_formatter.format("⇨ Fix MP3 tags:") 
                               + f"{Fore.MAGENTA}WARNING! MP3 tags fixed from YouTube but not cover art{Fore.RESET}")
-                except:
-                    print(f"{Fore.RED}ERROR! Failed to save MP3 tags and cover art.{Fore.RESET}")
-                    raise
+                except Exception as exc:
+                    # Raise exception
+                    raise TagJunkSongException(f"Failed to save MP3 tags and cover art") from exc
 
                 return True
             
@@ -339,13 +347,14 @@ class JunkSongTagger:
                     return
 
         # If an error occured attempting to fix the song and no user 
-        # confirmation is required, log the song as unfixed and return.
-        # Otherwise, prompt user for metadata input.
-        except Exception as e:
-            print(f"{Fore.RED}ERROR! Failed to fix junk song: {str(e)}{Fore.RESET}")
+        # confirmation is required, log the song as unfixed and raise an exception.
+        # Otherwise, log the error and prompt user for metadata input.
+        except Exception as exc:
             if not self.prompt_confirm:
-                self._log_failure(song, f"Failed to fix song automatically: {str(e)}")
-                return
+                self._log_failure(song, f"Failed to fix song automatically: {str(exc)}")
+                raise TagJunkSongException(f"Failed to fix junk song automatically") from exc
+            else:
+                logger.error(exc, f"Failed to fix song")
 
         # Prompt user for metadata input.
         # If user declines, log the song as unfixed and return.
@@ -369,7 +378,7 @@ class JunkSongTagger:
         
         # Attempt to fix the filename and mark the song as not junk.
         # If successful, log the song as fixed.
-        # If an error occurs, log the song as unfixed.
+        # If an error occurs, log the song as unfixed and raise an exception.
         try:
             song.fix_filename(mark_as_junk=filename_fix_choice == "junk")
             detail = "Song fixed from Shazam metadata"
@@ -385,9 +394,9 @@ class JunkSongTagger:
                 print(f"{Fore.GREEN}{Style.BRIGHT}SUCCESS! Song fixed and renamed to: "
                     + f"{Fore.LIGHTYELLOW_EX}{song.filename}{Fore.RESET}")
                 self._log_success(song, detail)
-        except Exception as e:
-            print(f"{Fore.RED}ERROR! Failed to rename junk song: {str(e)}{Fore.RESET}")
-            self._log_failure(song, f"Failed to rename junk song: {str(e)}")
+        except Exception as exc:
+            self._log_failure(song, f"Failed to rename junk song: {str(exc)}")
+            raise TagJunkSongException(f"Failed to rename junk song: {str(exc)}") from exc
 
 
     def _print_report(self) -> None:
@@ -444,7 +453,7 @@ async def tag_junk_songs(args) -> None:
             - playlist: Playlist identifier
     """
     
-    junk_songs = get_repository_song_files(
+    song_files = get_repository_song_files(
         Path(args.repo),
         keywords=args.keywords,
         filter_match_threshold=args.match,
@@ -453,33 +462,37 @@ async def tag_junk_songs(args) -> None:
         display_summary=True
     )
 
+    if not song_files:
+        print(f"\n{Fore.LIGHTYELLOW_EX}No matching junk songs found.{Fore.RESET}")
+        return
+
     tagger = JunkSongTagger(
-        len(junk_songs),
+        len(song_files),
         prompt_confirm=args.prompt,
         shazam_threshold=args.thresh
     )
 
-    if not junk_songs:
-        print(f"\n{Fore.LIGHTYELLOW_EX}No junk songs found.{Fore.RESET}")
-        return
-
     print(f"\n{Fore.MAGENTA}NOTE: Type CTRL+C twice to exit.{Fore.RESET}\n")
 
     if not args.prompt and input((
-            f"{Style.BRIGHT}{Fore.WHITE}About to fix {len(junk_songs)} junk songs automatically. "
+            f"{Style.BRIGHT}{Fore.WHITE}About to fix {len(song_files)} junk songs automatically. "
             + f"Do you want to proceed "
             + f"{Style.RESET_ALL}({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? "
         )).lower() != "yes":
         return
 
-    for song_index, song_path in enumerate(junk_songs, 1):
+    for song_index, song_file in enumerate(song_files, 1):
         try:
-            await tagger._process_single_song(SongModel(song_path), song_index)
+            await tagger._process_single_song(SongModel(song_file), song_index)
         except KeyboardInterrupt:
-            print("\nProcessing interrupted by user.")
-            break
-        except Exception as e:
-            print(f"\n{Fore.RED}Error processing {song_path}: {str(e)}{Fore.RESET}")
+            # Handle keyboard interrupt gracefully
+            tagger._print_report()
+            raise
+        except Exception as exc:
+            # Handle any exceptions that occur during processing
+            # and skip to the next song.
+            logger.error(exc, f"Error processing \"{song_file}\"")
             continue
 
+    # Print final report
     tagger._print_report()

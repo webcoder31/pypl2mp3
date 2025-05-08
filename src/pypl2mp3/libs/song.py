@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 PYPL2MP3: YouTube playlist MP3 converter and player,
 with Shazam song identification and tagging capabilities.
@@ -34,24 +33,15 @@ from slugify import slugify
 from thefuzz import fuzz
 
 # pypl2mp3 libs
+from pypl2mp3.libs.exceptions import AppBaseException
 from pypl2mp3.libs.utils import LabelFormatter
 
 
-class SongError(Exception):
+class SongModelException(AppBaseException):
     """
-    Song error class
+    Custom exception for song model errors.
     """
-    
-    def __init__(self, message, error=None):
-        """
-        Construct a SongError
-        """ 
-
-        extra = ""
-        if error:
-            extra = f": {str(error)}"
-
-        super().__init__(f"{message}{extra}")
+    pass
 
 
 class SongModel:
@@ -299,7 +289,7 @@ class SongModel:
             Song instance
 
         Raises:
-            SongError: If any error occurs during the process
+            SongModelError: If any error occurs during the creation process
         """
         
         # Disable verbosity logging
@@ -395,59 +385,76 @@ class SongModel:
 
             if after_connect_to_video is not None:
                 await after_connect_to_video(video_properties)
-        except Exception as error:
-            raise SongError(f"Failed to connect to YouTube video \"{youtube_id}\"", error)
+        except Exception as exc:
+            raise SongModelException(f"Failed to connect to YouTube video \"{youtube_id}\"") from exc
         
         # Download YouTube video audio stream
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_m4a_path = Path(temp_dir) / "temp.m4a"
             temp_mp3_path = Path(dest_folder_path) / "temp (JUNK).mp3"
 
-            try:
-                if progress_logger_for_download_audio is not None:
-                    logger = SongModel.AudioStreamDownloadProgressBar(
-                        progress_callback=progress_logger_for_download_audio.callback, 
-                        label=progress_logger_for_download_audio.label
-                    )
-                    video.register_on_progress_callback(logger.update)
+            # Set up progress logger for audio download
+            if progress_logger_for_download_audio is not None:
+                mp3_encode_logger = SongModel.AudioStreamDownloadProgressBar(
+                    progress_callback=progress_logger_for_download_audio.callback, 
+                    label=progress_logger_for_download_audio.label
+                )
+                video.register_on_progress_callback(mp3_encode_logger.update)
 
-                if before_download_audio is not None:
+            # Call before_download_audio hook if provided
+            if before_download_audio is not None:
+                try:
                     await before_download_audio(video_properties, temp_m4a_path)
+                except Exception as exc:
+                    raise SongModelException(f"Hook \"before_download_audio\" failed for YouTube video \"{youtube_id}\"") from exc
 
-                request.default_range_size = 1179648 # 1.12 MB chunk size (default is 9 MB)
+            # Download audio stream
+            try:
                 m4a_stream = video.streams.get_audio_only()
-
                 if m4a_stream is None:
-                    raise SongError("Cannot get audio stream from YouTube video")
+                    raise SongModelException(f"Cannot get audio stream for YouTube video \"{youtube_id}\"")
                 
+                request.default_range_size = 1179648 # 1.12 MB chunk size (default is 9 MB)
                 m4a_stream.download(output_path=Path(temp_dir), filename="temp.m4a")
-
-                if after_download_audio is not None:
-                    await after_download_audio(video_properties, temp_m4a_path)
-            except Exception as error:
-                raise SongError("Failed to stream audio track from YouTube video", error)
+            except Exception as exc:
+                raise SongModelException(f"Failed to stream audio track for YouTube video \"{youtube_id}\"") from exc
             
+            # Call after_download_audio hook if provided
+            if after_download_audio is not None:
+                try:
+                    await after_download_audio(video_properties, temp_m4a_path)
+                except Exception as exc:
+                    raise SongModelException(f"Hook \"after_download_audio\" failed for YouTube video \"{youtube_id}\"") from exc
+            
+            # Set up progress logger for MP3 encoding
+            mp3_encode_logger = None
+            if progress_logger_for_encode_to_mp3 is not None:
+                mp3_encode_logger = SongModel.Mp3EncodingProgressBar(
+                    progress_callback=progress_logger_for_encode_to_mp3.callback, 
+                    label=progress_logger_for_encode_to_mp3.label
+                )
+
+            # Call before_encode_to_mp3 hook if provided
+            if before_encode_to_mp3 is not None:
+                try:
+                    await before_encode_to_mp3(video_properties, temp_m4a_path, temp_mp3_path)
+                except Exception as exc:
+                    raise SongModelException(f"Hook \"before_encode_to_mp3\" failed for YouTube video \"{youtube_id}\"") from exc
+                
             # Encode audio stream to MP3 file
             try:
-                logger = None
-
-                if progress_logger_for_encode_to_mp3 is not None:
-                    logger = SongModel.Mp3EncodingProgressBar(
-                        progress_callback=progress_logger_for_encode_to_mp3.callback, 
-                        label=progress_logger_for_encode_to_mp3.label
-                    )
-
-                if before_encode_to_mp3 is not None:
-                    await before_encode_to_mp3(video_properties, temp_m4a_path, temp_mp3_path)
-
                 mp3_stream = AudioFileClip(str(temp_m4a_path))
-                mp3_stream.write_audiofile(str(temp_mp3_path), logger=logger)
+                mp3_stream.write_audiofile(str(temp_mp3_path), logger=mp3_encode_logger)
                 mp3_stream.close()
-
-                if after_encode_to_mp3 is not None:
+            except Exception as exc:
+                raise SongModelException(f"Failed to encode audio stream to MP3 for YouTube video \"{youtube_id}\"") from exc
+            
+            # Call after_encode_to_mp3 hook if provided
+            if after_encode_to_mp3 is not None:
+                try:
                     await after_encode_to_mp3(video_properties, temp_m4a_path, temp_mp3_path)
-            except Exception as error:
-                raise SongError("Failed to encode YouTube video audio stream to MP3", error)
+                except Exception as exc:
+                    raise SongModelException(f"Hook \"after_encode_to_mp3\" failed for YouTube video \"{youtube_id}\"") from exc
             
             # Create song object from MP3 file and YouTube song information 
             song = SongModel(
@@ -499,7 +506,7 @@ class SongModel:
             shazam_match_score=None
         ) -> None:
         """
-        Construct a Song instance from a MP3 file
+        Construct a song model instance from a MP3 file
 
         Args:
             mp3_path: Path to the MP3 file
@@ -510,7 +517,7 @@ class SongModel:
             shazam_match_score: Shazam match score
 
         Raises:
-            SongError: If YouTube ID is missing in MP3 file
+            SongModelError: If YouTube ID is missing in MP3 file
         """
         
         # Check if song object is already initialized
@@ -549,7 +556,7 @@ class SongModel:
             if match:
                 self.youtube_id = match.group("youtube_id")
             else:
-                raise SongError("YouTube ID is missing in MP3 file: " + str(self.path))
+                raise SongModelException(f"Missing YouTube ID in MP3 filename \"{str(self.path)}\"")
 
         # Extract song name from filename
         self.song_name_from_filename = self.label_from_filename
@@ -790,7 +797,7 @@ class SongModel:
             on_delete_cover_art: Callback when cover art is deleted
 
         Raises:
-            SongError: If cover art download fails
+            SongModelError: If cover art download fails
         """
 
         # Check if cover art must be updated or deleted
@@ -826,19 +833,26 @@ class SongModel:
 
         # Update or remove cover art
         if should_cover_art_be_updated :
-            if before_download_cover_art is not None:
-                await before_download_cover_art(self)
 
+            # Set up progress logger for cover art download
+            progress_bar_callback = None
+            if progress_logger_for_download_cover_art is not None:
+                progress_bar_logger = SongModel.CoverArtDownloadProgressBar(
+                    progress_callback=progress_logger_for_download_cover_art.callback, 
+                    label=progress_logger_for_download_cover_art.label
+                )
+                progress_bar_callback = progress_bar_logger.update
+
+            # Call before_download_cover_art hook if provided
+            if before_download_cover_art is not None:
+                try:
+                    await before_download_cover_art(self)
+                except Exception as exc:
+                    raise SongModelException(f"Hook \"before_download_cover_art\" failed") from exc
+            
+            # Download cover art
             with tempfile.TemporaryDirectory() as temporary_directory_pathname:
                 temporary_file_pathname = Path(temporary_directory_pathname) / "temp.jpg"
-                progress_bar_callback = None
-
-                if progress_logger_for_download_cover_art is not None:
-                    progress_bar_logger = SongModel.CoverArtDownloadProgressBar(
-                        progress_callback=progress_logger_for_download_cover_art.callback, 
-                        label=progress_logger_for_download_cover_art.label
-                    )
-                    progress_bar_callback = progress_bar_logger.update
 
                 try:
                     urllib.request.urlretrieve(
@@ -846,8 +860,8 @@ class SongModel:
                         temporary_file_pathname, 
                         progress_bar_callback
                     )
-                except Exception as error:
-                    raise SongError(f"Failed to download cover art") from error
+                except Exception as exc:
+                    raise SongModelException(f"Failed to download cover art") from exc
                 
                 try:
                     with open(temporary_file_pathname, "rb") as f:
@@ -869,14 +883,20 @@ class SongModel:
                             desc=u"Stored cover art URL",
                             text=u"" + self.cover_art_url
                         ))
-                except Exception as error:
-                    raise SongError(f"Failed to add cover art to MP3 file") from error
+                except Exception as exc:
+                    raise SongModelException(f"Failed to add cover art to MP3 file") from exc
                 
                 self.mp3.save(v1=0, v2_version=3)
 
+            # Update covert art presence flag
             self.has_cover_art = True
 
+            # Call after_download_cover_art hook if provided
             if after_download_cover_art is not None:
+                try:
+                    await after_download_cover_art(self)
+                except Exception as exc:
+                    raise SongModelException(f"Hook \"after_download_cover_art\" failed") from exc
                 await after_download_cover_art(self)
 
 
@@ -895,42 +915,47 @@ class SongModel:
             after_shazam_song: Callback after shazaming song
 
         Raises:
-            SongError: If Shazam API fails to recognize the song
+            SongModelError: If Shazam API call fails
         """
         
-        # Submit song to Shazam API for recognition.
-        # Wait for 15s min since last request to Shazam API.
-        # If request fails, wait for 35s before retry.
+        # Call before_shazam_song hook if provided
         if before_shazam_song is not None:
-            await before_shazam_song(self)
+            try:
+                await before_shazam_song(self)
+            except Exception as exc:
+                raise SongModelException(f"Hook \"before_shazam_song\" failed") from exc
 
+        # Submit song to Shazam API for recognition.
         try:
+            # Wait for 15s min since last request to Shazam API.
             diff_time = time.time() - SongModel.last_shazam_request_time
-
             if diff_time < 15:
                 time.sleep(15 - diff_time)
 
-            result = await self.shazam_client.recognize_song(str(self.path))
+            # Call Shazam API to recognize song and get metadata
+            shazam_meta = await self.shazam_client.recognize_song(str(self.path))
             SongModel.last_shazam_request_time = time.time()
         except:
+            # If Shazam API call fails, wait for 35s before retry
             diff_time = time.time() - SongModel.last_shazam_request_time
-
             if diff_time < 35:
                 time.sleep(35 - diff_time)
 
+            # Retry Shazam API call
+            # If it fails again, raise an error
             try:
-                result = await self.shazam_client.recognize_song(str(self.path))
+                shazam_meta = await self.shazam_client.recognize_song(str(self.path))
                 SongModel.last_shazam_request_time = time.time()
-            except Exception as error:
-                raise SongError("Shazam API seems out of service", error)
+            except Exception as exc:
+                raise SongModelException(f"Shazam API seems out of service") from exc
             
-        # Update song state and related MP3 file according to Shazam result and 
+        # Update song state and related MP3 file according to Shazam metadata and 
         # compare returned artist and title with current artist and title to compute 
         # matching rate using "fuzzy" string matching based on levenshtein distance algorithm.
-        if "track" in result:
+        if "track" in shazam_meta:
             try:
-                title = result["track"]["title"][:1].upper() + result["track"]["title"][1:]
-                artist = result["track"]["subtitle"][:1].upper() + result["track"]["subtitle"][1:]
+                title = shazam_meta["track"]["title"][:1].upper() + shazam_meta["track"]["title"][1:]
+                artist = shazam_meta["track"]["subtitle"][:1].upper() + shazam_meta["track"]["subtitle"][1:]
                 artist_match_score = fuzz.partial_token_sort_ratio(self.artist, artist, True)
                 title_match_score = fuzz.partial_token_sort_ratio(self.title, title, True)
 
@@ -943,13 +968,13 @@ class SongModel:
                 else:
                     match_score = int((artist_match_score + title_match_score * 2) / 3)
 
-                # If match score is good enough, update song state and related MP3 file
-                # with artist, title and cover art URL from Shazam.
-                # Otherwise, only save artist and title grabbed from Shazam
-                # along with match score.
+                # If match score is good enough, update and save all 
+                # related MP3 file metadata with artist, title and 
+                # cover art URL from Shazam metadata.
+                # Otherwise, only save Shazam-specific metadata.
                 if match_score >= shazam_match_threshold:
                     try:
-                        cover_art_url = result["track"]["images"]["coverart"]
+                        cover_art_url = shazam_meta["track"]["images"]["coverart"]
                         self.update_state(
                             artist=artist,
                             title=title,
@@ -960,8 +985,8 @@ class SongModel:
                             shazam_match_score=match_score
                         )
                     except:
-                        # If cover art URL is not available, update song state and related MP3 file
-                        # with artist and title from Shazam only along with match score.
+                        # If cover art URL is not available, 
+                        # don't change cover art settings.
                         self.update_state(
                             artist=artist,
                             title=title,
@@ -970,18 +995,24 @@ class SongModel:
                             shazam_match_score=match_score
                         )
                 else:
+                    # If match score is not good enough, only save 
+                    # Shazam-specific metadata excepted cover art URL.
                     self.update_state(
                         shazam_artist=artist,
                         shazam_title=title,
                         shazam_match_score=match_score
                     )
-            except Exception as error:
-                raise SongError("Unexpected Shazam result", error)
+            except Exception as exc:
+                raise SongModelException(f"Failed to update song from Shazam metadata") from exc
         else:
             self.update_state(shazam_match_score=0)
 
+        # Call after_shazam_song hook if provided
         if after_shazam_song is not None:
-            await after_shazam_song(self)
+            try:
+                await after_shazam_song(self)
+            except Exception as exc:
+                raise SongModelException(f"Hook \"after_shazam_song\" failed") from exc
 
 
     def fix_filename(self, mark_as_junk=None) -> None:
@@ -1003,8 +1034,8 @@ class SongModel:
 
         try:
             self.path = self.path.rename(self.path.parent / appropriate_filename)
-        except:
-            raise SongError("Failed to rename song MP3 file")
+        except Exception as exc:
+            raise SongModelException(f"Failed to rename song MP3 file") from exc
         
         self.update_state()
 

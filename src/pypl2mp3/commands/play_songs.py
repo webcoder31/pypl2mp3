@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 PYPL2MP3: YouTube playlist MP3 converter and player,
 with Shazam song identification and tagging capabilities.
@@ -31,15 +30,24 @@ from typing import List, Optional
 from colorama import Fore, Style
 from sshkeyboard import listen_keyboard, stop_listening
 
-# First set env var to hide pygame support prompt, then import pygame
+# Import pygame
+# First set env var to hide pygame support prompt 
 # This is necessary to avoid pygame's support prompt
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 import pygame
 
 # pypl2mp3 libs
+from pypl2mp3.libs.exceptions import AppBaseException
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
 from pypl2mp3.libs.utils import LabelFormatter, ProgressCounter, format_song_display
+
+
+class PlaySongException(AppBaseException):
+    """
+    Custom exception for song player errors.
+    """
+    pass
 
 
 @dataclass
@@ -58,7 +66,7 @@ class PlayerState:
         verbose: Flag for verbose output
         player_thread: Thread instance for running the player
     """
-    song_files: List[str] = None
+    song_files: List[Path] = None
     song_count: int = 0
     current_index: int = -1
     current_url: Optional[str] = None
@@ -86,6 +94,7 @@ def _cleanup_player() -> None:
     """
     Clean up player resources and stop playback.
     """
+
     pygame.mixer.music.stop()
     stop_listening()
     pygame.quit()
@@ -120,6 +129,10 @@ def _display_song_info(song: SongModel, counter: str, is_next: bool = False) -> 
     """
     Display song information with formatting.
 
+    This function formats and prints the song information
+    including the title, artist, duration, and other metadata.
+    It also handles the display of the next song preview.
+
     Args:
         song: SongModel instance containing song metadata
         counter: Progress counter string
@@ -148,9 +161,11 @@ def _display_song_info(song: SongModel, counter: str, is_next: bool = False) -> 
               end="", flush=True)
 
 
-def _play_current_song() -> None:
+def _run_playback_loop() -> None:
     """
-    Play the current song and handle playback loop.
+    Main loop for playing songs in the playlist.
+    This function handles the playback of songs, including
+    loading, playing, and handling user input for controls.
     """
 
     while True:
@@ -181,10 +196,18 @@ def _play_current_song() -> None:
             while player.is_running and (pygame.mixer.music.get_busy() or player.is_paused):
                 clock.tick(1)
 
-        except pygame.error:
-            print(f"\n{Fore.RED}Error playing song: {current_file}{Fore.RESET}")
+        # except KeyboardInterrupt:
+        #     # Handle keyboard interrupt gracefully
+        #     _cleanup_player()
+        #     raise
+        except pygame.error as exc:
+            # Handle pygame error during playback
             _cleanup_player()
-            return
+            raise PlaySongException(f"Audio mixer error playing song: {current_file}") from exc
+        except Exception as exc:
+            # Handle any other unexpected errors
+            _cleanup_player()
+            raise PlaySongException(f"Unexpected error playing song: {current_file}") from exc
 
 
 async def _handle_keypress(key: str) -> None:
@@ -268,6 +291,10 @@ def play_songs(args) -> None:
         display_summary=True
     )
 
+    if not player.song_files:
+        print(f"{Fore.YELLOW}No matching songs found.{Fore.RESET}")
+        return
+
     if args.shuffle:
         random.shuffle(player.song_files)
 
@@ -277,7 +304,12 @@ def play_songs(args) -> None:
     _init_pygame_mixer()
     _display_controls()
 
-    player.player_thread = Thread(target=_play_current_song, daemon=True)
-    player.player_thread.start()
+    try:
+        player.player_thread = Thread(target=_run_playback_loop, daemon=True)
+        player.player_thread.start()
+    except KeyboardInterrupt:
+        # Handle keyboard interrupt gracefully
+        _cleanup_player()
+        raise
 
     listen_keyboard(on_press=_handle_keypress, sequential=True)

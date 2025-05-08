@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 PYPL2MP3: YouTube playlist MP3 converter and player,
 with Shazam song identification and tagging capabilities.
@@ -15,7 +14,7 @@ Repository: https://github.com/webcoder31/pypl2mp3
 from pathlib import Path
 import re
 from dataclasses import dataclass
-from typing import List
+from typing import Any, List
 
 # Third party packages
 from colorama import Fore, Back, Style
@@ -46,7 +45,7 @@ class PlaylistStats:
         return self.total_songs - self.junk_songs
 
 
-def list_playlists(args) -> None:
+def list_playlists(args: Any) -> None:
     """
     List all playlists in the repository with their song statistics.
 
