@@ -624,12 +624,23 @@ def main():
     logger.info("PYPL2MP3 started at " + start_date)
     print(f"{Fore.LIGHTGREEN_EX}PYPL2MP3 STARTED AT {start_date}\n")
     
-    # Print the current configuration
-    logger.info("Current configuration: " 
-        + f"command={args.command}, "
-        + f"repository={default_repository_path}, "
-        + f"playlist_id={default_playlist_id}"
+    # Log current configuration
+    logger.info("Configuration: " 
+        + f"Repository = {default_repository_path}, "
+        + f"Favorite playlist id = {default_playlist_id}"
     )
+
+    # Log ran command with main options
+    current_command = f"Command: {args.command.upper()}"
+    if args.playlist:
+        current_command += f", Playlist = \"{args.playlist}\""
+    if args.keywords:
+        current_command += f", Filter = \"{args.keywords}\""
+        current_command += f", Match threshold = {args.match}%"
+    if args.command in {"import", "fix"}:
+        current_command += f", Shazam match threshold = {args.thresh}%"
+    logger.info(current_command)
+
     print(f"{Fore.WHITE + Style.DIM}⇨ Playlists repository:  {Style.NORMAL}"
         + f"{Fore.LIGHTBLUE_EX}{default_repository_path}")
     
