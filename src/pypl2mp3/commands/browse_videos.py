@@ -21,7 +21,7 @@ from colorama import Fore, Style
 # pypl2mp3 libs
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
-from pypl2mp3.libs.utils import LabelFormatter, ProgressCounter, format_song_display
+from pypl2mp3.libs.utils import LabelFormatter, CountFormatter, format_song_display
 
 
 def browse_videos(args: Any) -> None:
@@ -61,25 +61,25 @@ def _process_songs(song_files: List[Path], verbose: bool) -> None:
         verbose: Whether to display detailed information
     """
 
-    progress = ProgressCounter(len(song_files))
+    count_formatter = CountFormatter(len(song_files))
     label_formatter = LabelFormatter(9)
 
     for index, song_file in enumerate(song_files, 1):
         song = SongModel(song_file)
-        counter = progress.format(index)
+        counter = count_formatter.format(index)
         
         print(f"\n{format_song_display(counter, song)}")
         
         if verbose:
-            _display_verbose_info(progress, label_formatter, song)
+            _display_verbose_info(count_formatter, label_formatter, song)
             
         if _should_open_url():
             _open_youtube_url(song.youtube_id)
 
 
 def _display_verbose_info(
-        progress: ProgressCounter, 
-        formatter: LabelFormatter, 
+        count_formatter: CountFormatter, 
+        label_formatter: LabelFormatter, 
         song: SongModel
     ) -> None:
 
@@ -91,14 +91,14 @@ def _display_verbose_info(
         formatter: Label formatter for consistent output
         song: SongModel object containing song details
     """
-    placeholder = progress.placeholder()
-    print(f"{placeholder}  {formatter.format('Playlist')}"
+    placeholder = count_formatter.placeholder()
+    print(f"{placeholder}  {label_formatter.format('Playlist')}"
         + f"{Fore.LIGHTBLUE_EX}{song.playlist}{Fore.RESET}")
     
-    print(f"{placeholder}  {formatter.format('Filename')}"
+    print(f"{placeholder}  {label_formatter.format('Filename')}"
         + f"{Fore.LIGHTBLUE_EX}{song.filename}{Fore.RESET}")
     
-    print(f"{placeholder}  {formatter.format('Link')}"
+    print(f"{placeholder}  {label_formatter.format('Link')}"
         + f"{Fore.LIGHTBLUE_EX}https://youtu.be/{song.youtube_id}{Fore.RESET}")
 
 

@@ -22,7 +22,7 @@ from colorama import Fore
 # pypl2mp3 libs
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
-from pypl2mp3.libs.utils import LabelFormatter, ProgressCounter, format_song_display
+from pypl2mp3.libs.utils import LabelFormatter, CountFormatter, format_song_display
 
 
 def list_junks(args: Any) -> None:
@@ -69,29 +69,29 @@ def _display_song_information(song_files: list[str], verbose: bool) -> None:
     if not verbose:
         print()
 
-    progress_counter = ProgressCounter(len(song_files))
+    count_formatter = CountFormatter(len(song_files))
     
     for index, song_file in enumerate(song_files, 1):
-        counter = progress_counter.format(index)
+        counter = count_formatter.format(index)
         song = SongModel(song_file)
         
         print(("", "\n")[verbose] + format_song_display(counter, song))
         
         if verbose:
-            _display_verbose_information(song, progress_counter)
+            _display_verbose_information(song, count_formatter)
 
 
-def _display_verbose_information(song: SongModel, progress_counter: ProgressCounter) -> None:
+def _display_verbose_information(song: SongModel, count_formatter: CountFormatter) -> None:
     """
     Display detailed information about a song including playlist, filename, and status.
 
     Args:
         song: Song model instance
-        progress_counter: Progress counter for formatting output
+        count_formatter: Progress counter for formatting output
     """
 
     label_formatter = LabelFormatter(9)
-    placeholder = progress_counter.placeholder()
+    placeholder = count_formatter.placeholder()
 
     # Display basic information
     print(f"{placeholder}  {label_formatter.format('Playlist')}"

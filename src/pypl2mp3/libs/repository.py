@@ -30,9 +30,9 @@ from pypl2mp3.libs.exceptions import AppBaseException
 from pypl2mp3.libs.logger import logger
 from pypl2mp3.libs.song import SongModel
 from pypl2mp3.libs.utils import (
-    extract_youtube_id_from_filename,
-    get_deterministic_sort_key,
-    calculate_fuzzy_match_score,
+    get_song_id_from_filename,
+    natural_sort_key,
+    get_match_score,
 )
 
 
@@ -84,7 +84,7 @@ def get_repository_playlist(
         return sorted(
             [folder.name for folder in repository_path.glob("*")
              if re.match(r"^.*\[[^\]]+\][^\]]*$", folder.name)],
-            key=get_deterministic_sort_key
+            key=natural_sort_key
         )
 
     def _extract_playlist_id(identifier: str) -> str:
@@ -131,7 +131,7 @@ def get_repository_playlist(
         
         # If index is valid, return the corresponding playlist
         folder = playlist_folders[index]
-        playlist_id = extract_youtube_id_from_filename(folder)
+        playlist_id = get_song_id_from_filename(folder)
         return SimpleNamespace(
             id=playlist_id,
             url=f"https://www.youtube.com/playlist?list={playlist_id}",
@@ -290,7 +290,7 @@ def _find_matching_songs(
     file_pattern = "*(JUNK).mp3" if junk_only else "*.mp3"
     song_files = [
         path for path in search_path.rglob(file_pattern)
-            if extract_youtube_id_from_filename(path.name)
+            if get_song_id_from_filename(path.name)
     ]
 
     # If no song files are found, return None
@@ -335,7 +335,7 @@ def _sort_songs_by_name(song_files: List[Path]) -> List[Path]:
     return [
         song["path"] for song in sorted(
             songs,
-            key=lambda s: (get_deterministic_sort_key(s["name"]), s["path"].parent.name)
+            key=lambda s: (natural_sort_key(s["name"]), s["path"].parent.name)
         )
     ]
 
@@ -362,7 +362,7 @@ def _filter_and_sort_songs_by_match_score(
     for path in song_files:
         try:
             song = SongModel(path)
-            match_level = calculate_fuzzy_match_score(song.artist, song.title, keywords)
+            match_level = get_match_score(song.artist, song.title, keywords)
             if match_level > 0:
                 matched_songs.append({"path": path, "match_level": match_level})
         except Exception as exc:

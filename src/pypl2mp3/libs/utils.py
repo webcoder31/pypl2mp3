@@ -23,7 +23,7 @@ from slugify import slugify
 from thefuzz import fuzz
 
 
-def extract_youtube_id_from_filename(filename: str) -> Optional[str]:
+def get_song_id_from_filename(filename: str) -> Optional[str]:
     """
     Extract YouTube ID from a filename's last brackets.
     
@@ -42,7 +42,7 @@ def extract_youtube_id_from_filename(filename: str) -> Optional[str]:
     return None
 
 
-def extract_youtube_id_from_url(url: str) -> Optional[str]:
+def get_song_id_from_url(url: str) -> Optional[str]:
     """
     Extract YouTube ID from a YouTube URL.
     
@@ -61,7 +61,7 @@ def extract_youtube_id_from_url(url: str) -> Optional[str]:
     return None
 
 
-def calculate_fuzzy_match_score(artist: str, title: str, keywords: str) -> float:
+def get_match_score(artist: str, title: str, keywords: str) -> float:
     """
     Calculate similarity score between song details and search keywords.
     
@@ -108,29 +108,31 @@ def calculate_fuzzy_match_score(artist: str, title: str, keywords: str) -> float
     
     # Calculate aggressiveness penalty based on the number of keywords
     # The more keywords, the more severe the penalty
-    # This ensures that the score is not too high for a large number of keywords
-    # compared to score obtained with fewer keywords
+    # This ensures that the score is not too high for a large number 
+    # of keywords compared to score obtained with fewer keywords
     aggressiveness_penalty = 50 * math.exp(-(math.log(2) / 3) * weight_sum)
 
-    # Calculate final score
-    final_score = max((score / weight_sum) - aggressiveness_penalty - (penalty * 10), 0)
-    
     # Return final score
-    return final_score
+    return max(
+        (score / weight_sum) - aggressiveness_penalty - (penalty * 10),
+        0
+    )
 
 
-def get_deterministic_sort_key(text: str) -> tuple[str, str]:
+def natural_sort_key(key: str) -> tuple[str, str]:
     """
-    Create a deterministic sort key for case-insensitive sorting.
+    Return a pair of keys (tuple) from given one,
+    in order to perform a deterministic case-insensitive sorting 
+    (e.g., get "Une Clé Avec Majusculse et Caractères Accentués" 
+    sorted close to "une cle avec majuscules et caracteres accentues").
     
     Args:
-        text: Text to create sort key from
-
+        key: Key from which derivating deterministic naturel sort key pair
     Returns:
-        Tuple of (normalized text, original text)
+        Tuple of (normalized key, original key)
     """
 
-    return slugify(str(text)).casefold(), str(text)
+    return slugify(str(key)).casefold(), str(key)
 
 
 def format_song_display(counter: str, song: any) -> str:
@@ -159,14 +161,14 @@ def format_song_display(counter: str, song: any) -> str:
 @dataclass
 class LabelFormatter:
     """
-    Utility class for formatting text labels with consistent padding.
+    Utility class for formatting left-justified labels.
     """
     
-    tab_size: int
+    width: int
     
     def format(self, label: str) -> str:
         """
-        Format a label with consistent padding and styling.
+        Format a label with consistent width and styling.
         
         Args:
             label: Label text to format
@@ -174,24 +176,27 @@ class LabelFormatter:
         Returns:
             Formatted label string
         """
-        return f"{Fore.WHITE}{Style.DIM}{label.ljust(self.tab_size)} {Style.RESET_ALL}"
+        return (
+            f"{Fore.WHITE}{Style.DIM}"
+            f"{label.ljust(self.width)} "
+            f"{Style.RESET_ALL}"
+        )
     
-    
-    def format_raw(self, label: str) -> str:
+    def pad_only(self, label: str) -> str:
         """
-        Format a label with consistent padding but no styling.
+        Format a label with consistent width but no styling.
         
         Args:
-            label: Label text to format
+            label: Label text
 
         Returns:
-            Formatted label string
+            Right-padded label
         """
-        return f"{label.ljust(self.tab_size)}"
+        return f"{label.ljust(self.width)}"
 
 
 @dataclass
-class ProgressCounter:
+class CountFormatter:
     """
     Utility class for formatting progress counters.
     """
@@ -200,7 +205,7 @@ class ProgressCounter:
     
     def __post_init__(self):
         self.number_width = max(2, len(str(self.total_count)))
-        self.pad_size = self.number_width * 2 + 1
+        self.width = self.number_width * 2 + 1
     
     def format(self, current: int) -> str:
         """
@@ -214,9 +219,10 @@ class ProgressCounter:
         """
         
         return (
-            f"{Fore.LIGHTGREEN_EX}{Style.BRIGHT}{str(current).rjust(self.number_width, '0')}"
-            f"{Style.DIM}/{Style.RESET_ALL}"
-            f"{Fore.GREEN}{str(self.total_count).rjust(self.number_width, '0')}"
+            f"{Fore.LIGHTGREEN_EX}{Style.BRIGHT}" 
+            f"{str(current).rjust(self.number_width, '0')}"
+            f"{Style.DIM}/{Style.RESET_ALL}{Fore.GREEN}"
+            f"{str(self.total_count).rjust(self.number_width, '0')}"
             f"{Style.RESET_ALL}"
         )
     
@@ -231,4 +237,8 @@ class ProgressCounter:
             Formatted placeholder string
         """
 
-        return f"{Fore.LIGHTGREEN_EX}{text[:self.pad_size].ljust(self.pad_size)}{Style.RESET_ALL}"
+        return (
+            f"{Fore.LIGHTGREEN_EX}" 
+            f"{text[:self.width].ljust(self.width)}"
+            f"{Style.RESET_ALL}"
+        )

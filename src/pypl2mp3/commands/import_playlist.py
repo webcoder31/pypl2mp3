@@ -28,11 +28,11 @@ from pypl2mp3.libs.logger import logger
 from pypl2mp3.libs.repository import get_repository_playlist
 from pypl2mp3.libs.song import SongModel
 from pypl2mp3.libs.utils import (
-    extract_youtube_id_from_filename,
-    extract_youtube_id_from_url,
-    calculate_fuzzy_match_score,
+    get_song_id_from_filename,
+    get_song_id_from_url,
+    get_match_score,
     LabelFormatter,
-    ProgressCounter
+    CountFormatter
 )
 
 # Automatically clear style on each print
@@ -329,7 +329,7 @@ async def import_playlist(args) -> None:
     )
     
     logger.info(f"Retrieving data for playlist \"{selected_playlist.id}\"")
-    
+
     print(
         f"\n{Fore.LIGHTGREEN_EX}Retrieving YouTube playlist from:" 
         + f"\n{Fore.LIGHTYELLOW_EX}{selected_playlist.url}"
@@ -375,13 +375,13 @@ async def import_playlist(args) -> None:
 
     # Initialize tracking sets
     existing_songs = frozenset(
-        map(extract_youtube_id_from_filename, playlist_path.glob("*.mp3"))
+        map(get_song_id_from_filename, playlist_path.glob("*.mp3"))
     )
     junk_songs = frozenset(
-        map(extract_youtube_id_from_filename, playlist_path.glob("* (JUNK).mp3"))
+        map(get_song_id_from_filename, playlist_path.glob("* (JUNK).mp3"))
     )
     video_ids = frozenset(
-        map(extract_youtube_id_from_url, plst.video_urls)
+        map(get_song_id_from_url, plst.video_urls)
     )
     
     # Calculate number of new songs to import
@@ -411,9 +411,9 @@ async def import_playlist(args) -> None:
         )
 
     # Initialize progress tracking
-    progress_counter = ProgressCounter(new_song_count)
-    label_formatter = LabelFormatter(28 + progress_counter.pad_size)
-    padding_diff = label_formatter.tab_size - progress_counter.pad_size
+    count_formatter = CountFormatter(new_song_count)
+    label_formatter = LabelFormatter(28 + count_formatter.width)
+    padding = label_formatter.width - count_formatter.width
     report = ImportReport()
     
     # Process each video
@@ -442,10 +442,10 @@ async def import_playlist(args) -> None:
             continue
 
         # Check if video matches import filter criteria
-        counter = progress_counter.format(song_index)
+        counter = count_formatter.format(song_index)
         song_name = f"{video.author} {video.title}"
         song_ref = f"{song_name} [{video.video_id}]"
-        match_score = calculate_fuzzy_match_score(video.author, video.title, args.keywords)
+        match_score = get_match_score(video.author, video.title, args.keywords)
 
         if match_score < args.match:
 
@@ -458,7 +458,7 @@ async def import_playlist(args) -> None:
                 line_break = "\n"  # Handle line break particular case
             print(
                 f"{line_break}{counter}{Fore.WHITE}" 
-                + f" ⇨ Match too low ({match_score:.1f}%)".ljust(padding_diff, " ")
+                + f" ⇨ Match too low ({match_score:.1f}%)".ljust(padding, " ")
                 + f" {Fore.RESET}{Fore.GREEN}{song_name}{Fore.RESET}" 
                 + f" {Fore.BLUE}[{video.video_id}]"
             )
@@ -477,7 +477,7 @@ async def import_playlist(args) -> None:
         # Display new video to import
         print(
             f"\n{counter}{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}" 
-            + " ⇨ New video to import!".ljust(padding_diff, " ") 
+            + " ⇨ New video to import!".ljust(padding, " ") 
             + f" {Fore.LIGHTGREEN_EX}{song_name}{Fore.RESET}" 
             + f" {Fore.BLUE}[{video.video_id}]"
         )

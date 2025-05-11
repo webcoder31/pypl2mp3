@@ -20,7 +20,7 @@ from colorama import Fore, Style
 # pypl2mp3 libs
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
-from pypl2mp3.libs.utils import ProgressCounter, format_song_display
+from pypl2mp3.libs.utils import CountFormatter, format_song_display
 
 
 def junkize_songs(args: Any) -> None:
@@ -70,10 +70,10 @@ def _process_songs(song_files: List[Path], should_prompt_per_song: bool) -> None
         should_prompt_per_song: Whether to prompt for confirmation for each song
     """
 
-    progress_counter = ProgressCounter(len(song_files))
+    count_formatter = CountFormatter(len(song_files))
 
     for index, song_file in enumerate(song_files, 1):
-        counter = progress_counter.format(index)
+        counter = count_formatter.format(index)
         song = SongModel(song_file)
         
         print(f"\n{format_song_display(counter, song)}  "

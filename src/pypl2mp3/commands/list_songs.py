@@ -21,7 +21,7 @@ from colorama import Fore
 # pypl2mp3 libs
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
-from pypl2mp3.libs.utils import LabelFormatter, ProgressCounter, format_song_display
+from pypl2mp3.libs.utils import LabelFormatter, CountFormatter, format_song_display
 
 
 def list_songs(args: Any) -> None:
@@ -67,29 +67,29 @@ def _display_songs(song_files: list[Path], verbose: bool) -> None:
         verbose: Whether to show detailed information
     """
 
-    progress_counter = ProgressCounter(len(song_files))
+    count_formatter = CountFormatter(len(song_files))
     
     for index, song_file in enumerate(song_files, 1):
-        counter = progress_counter.format(index)
+        counter = count_formatter.format(index)
         song = SongModel(song_file)
         
         print(("", "\n")[verbose] + format_song_display(counter, song))
         
         if verbose:
-            _display_verbose_info(song, progress_counter)
+            _display_verbose_info(song, count_formatter)
 
 
-def _display_verbose_info(song: SongModel, progress_counter: ProgressCounter) -> None:
+def _display_verbose_info(song: SongModel, count_formatter: CountFormatter) -> None:
     """
     Display detailed information about a song.
 
     Args:
         song: Song model containing song metadata
-        progress_counter: Counter for formatting output
+        count_formatter: Counter for formatting output
     """
     
     label_formatter = LabelFormatter(9)
-    placeholder = progress_counter.placeholder()
+    placeholder = count_formatter.placeholder()
     
     verbose_fields = {
         "Playlist": song.playlist,

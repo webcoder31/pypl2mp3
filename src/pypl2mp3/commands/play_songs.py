@@ -40,7 +40,7 @@ import pygame
 from pypl2mp3.libs.exceptions import AppBaseException
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
-from pypl2mp3.libs.utils import LabelFormatter, ProgressCounter, format_song_display
+from pypl2mp3.libs.utils import LabelFormatter, CountFormatter, format_song_display
 
 
 class PlaySongException(AppBaseException):
@@ -62,7 +62,7 @@ class PlayerState:
         is_running: Flag indicating if the player is running
         is_paused: Flag indicating if the player is paused
         play_direction: Direction of playback ('forward' or 'backward')
-        progress_counter: Progress counter instance for displaying progress
+        count_formatter: Progress counter instance for displaying progress
         verbose: Flag for verbose output
         player_thread: Thread instance for running the player
     """
@@ -73,7 +73,7 @@ class PlayerState:
     is_running: bool = False
     is_paused: bool = False
     play_direction: str = "forward"
-    progress_counter: Optional[ProgressCounter] = None
+    count_formatter: Optional[CountFormatter] = None
     verbose: bool = False
     player_thread: Optional[Thread] = None
 
@@ -145,14 +145,14 @@ def _display_song_info(song: SongModel, counter: str, is_next: bool = False) -> 
         
         if player.verbose:
             formatter = LabelFormatter(9)
-            print(f"{player.progress_counter.placeholder()}  "
+            print(f"{player.count_formatter.placeholder()}  "
                   f"{formatter.format('Playlist')}{Fore.LIGHTBLUE_EX}{song.playlist}{Fore.RESET}")
-            print(f"{player.progress_counter.placeholder()}  "
+            print(f"{player.count_formatter.placeholder()}  "
                   f"{formatter.format('Filename')}{Fore.LIGHTBLUE_EX}{song.filename}{Fore.RESET}")
-            print(f"{player.progress_counter.placeholder()}  "
+            print(f"{player.count_formatter.placeholder()}  "
                   f"{formatter.format('Link')}{Fore.LIGHTBLUE_EX}https://youtu.be/{song.youtube_id}{Fore.RESET}")
     else:
-        next_counter = player.progress_counter.placeholder(
+        next_counter = player.count_formatter.placeholder(
             "<--" if player.play_direction == "backward" else "-->"
         )
         print(("\n" if player.verbose else "") + 
@@ -177,7 +177,7 @@ def _run_playback_loop() -> None:
         current_song = SongModel(current_file)
         player.current_url = f"https://youtu.be/{current_song.youtube_id}"
 
-        counter = player.progress_counter.format(player.current_index + 1)
+        counter = player.count_formatter.format(player.current_index + 1)
         _display_song_info(current_song, counter)
 
         next_index = _get_next_song_index(
@@ -299,7 +299,7 @@ def play_songs(args) -> None:
         random.shuffle(player.song_files)
 
     player.song_count = len(player.song_files)
-    player.progress_counter = ProgressCounter(player.song_count)
+    player.count_formatter = CountFormatter(player.song_count)
 
     _init_pygame_mixer()
     _display_controls()

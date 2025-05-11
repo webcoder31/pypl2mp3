@@ -27,7 +27,7 @@ from pypl2mp3.libs.exceptions import AppBaseException
 from pypl2mp3.libs.logger import logger
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
-from pypl2mp3.libs.utils import LabelFormatter, ProgressCounter, format_song_display
+from pypl2mp3.libs.utils import LabelFormatter, CountFormatter, format_song_display
 
 
 class TagJunkSongException(AppBaseException):
@@ -81,7 +81,7 @@ class JunkSongTagger:
             label_width: Width for formatting labels in output
         """
 
-        self.progress_counter = ProgressCounter(total_songs)
+        self.count_formatter = CountFormatter(total_songs)
         self.prompt_confirm = prompt_confirm
         self.shazam_threshold = shazam_threshold
         self.label_formatter = LabelFormatter(label_width)
@@ -213,7 +213,7 @@ class JunkSongTagger:
 
                     # Get song covert art and save it in MP3 file
                     await song.update_cover_art(progress_logger_for_download_cover_art=SimpleNamespace(
-                        label=self.label_formatter.format_raw("⇨ Get cover art:"),
+                        label=self.label_formatter.pad_only("⇨ Get cover art:"),
                         callback=None
                     ))
                     if song.has_cover_art:
@@ -247,7 +247,7 @@ class JunkSongTagger:
         """
 
         # Print song information
-        print(f"\n{format_song_display(self.progress_counter.format(song_index), song)}  "
+        print(f"\n{format_song_display(self.count_formatter.format(song_index), song)}  "
             + f"{Fore.WHITE}{Style.DIM}[https://youtu.be/{song.youtube_id}]")
         print(self.label_formatter.format("⇨ Junk song filename:")
             + f"{Fore.MAGENTA}{song.filename}{Fore.RESET}")
@@ -294,7 +294,7 @@ class JunkSongTagger:
 
                 # Get song covert art and save it in MP3 file
                 await song.update_cover_art(progress_logger_for_download_cover_art=SimpleNamespace(
-                    label=self.label_formatter.format_raw("⇨ Get cover art:"),
+                    label=self.label_formatter.pad_only("⇨ Get cover art:"),
                     callback=None
                 ))
                 if song.has_cover_art:
@@ -315,7 +315,7 @@ class JunkSongTagger:
               + f"Match: {song.shazam_match_score}%{Fore.RESET}")
             if self.shazam_threshold > 0 and song.shazam_match_score >= self.shazam_threshold:
                 await song.update_cover_art(progress_logger_for_download_cover_art=SimpleNamespace(
-                    label=self.label_formatter.format_raw("⇨ Get cover art:"),
+                    label=self.label_formatter.pad_only("⇨ Get cover art:"),
                     callback=None
                 ))
                 if song.has_cover_art:

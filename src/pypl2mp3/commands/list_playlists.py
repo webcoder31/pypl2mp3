@@ -21,9 +21,9 @@ from colorama import Fore, Back, Style
 
 # pypl2mp3 libs
 from pypl2mp3.libs.utils import (
-    ProgressCounter, 
-    get_deterministic_sort_key, 
-    extract_youtube_id_from_filename
+    CountFormatter, 
+    natural_sort_key, 
+    get_song_id_from_filename
 )
 
 
@@ -82,7 +82,7 @@ def _get_playlist_paths(repository_path: Path) -> List[Path]:
         Path(path) for path in repository_path.glob("*/")
         if playlist_pattern.match(str(path))
     ]
-    playlist_paths.sort(key=get_deterministic_sort_key)
+    playlist_paths.sort(key=natural_sort_key)
 
     return playlist_paths
 
@@ -124,12 +124,12 @@ def _display_playlists_details(playlist_paths: List[Path]) -> None:
         playlist_paths: List of paths to playlist directories
     """
     
-    progress_counter = ProgressCounter(len(playlist_paths))
-    placeholder = progress_counter.placeholder()
+    count_formatter = CountFormatter(len(playlist_paths))
+    placeholder = count_formatter.placeholder()
     
     for index, playlist_path in enumerate(playlist_paths, 1):
-        counter = progress_counter.format(index)
-        playlist_youtube_id = extract_youtube_id_from_filename(playlist_path.name)
+        counter = count_formatter.format(index)
+        playlist_youtube_id = get_song_id_from_filename(playlist_path.name)
         playlist_name = playlist_path.name.replace(f"[{playlist_youtube_id}]", "").strip()
         stats = _get_playlist_stats(playlist_path)
         
