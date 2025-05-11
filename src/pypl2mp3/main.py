@@ -632,9 +632,9 @@ def main():
 
     # Log ran command with main options
     current_command = f"Command: {args.command.upper()}"
-    if args.playlist:
+    if "playlist" in args:
         current_command += f", Playlist = \"{args.playlist}\""
-    if args.keywords:
+    if "keywords" in args and "match" in args:
         current_command += f", Filter = \"{args.keywords}\""
         current_command += f", Match threshold = {args.match}%"
     if args.command in {"import", "fix"}:
