@@ -13,18 +13,27 @@ Repository: https://github.com/webcoder31/pypl2mp3
 # Python core modules
 from pathlib import Path
 import webbrowser
-from typing import Any, List
 
 # Third party packages
-from colorama import Fore, Style
+from colorama import Fore, Style, init
 
 # pypl2mp3 libs
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
-from pypl2mp3.libs.utils import LabelFormatter, CountFormatter, format_song_display
+from pypl2mp3.libs.utils import (
+    LabelFormatter, 
+    CountFormatter, 
+    check_and_display_song_selection_result,
+    format_song_display,
+    format_song_details_display,
+    prompt_user
+)
+
+# Automatically clear style on each print
+init(autoreset=True)
 
 
-def browse_videos(args: Any) -> None:
+def browse_videos(args: any) -> None:
     """
     Prompt to open song videos on YouTube, based on user selection.
 
@@ -42,17 +51,19 @@ def browse_videos(args: Any) -> None:
         keywords=args.keywords,
         filter_match_threshold=args.match,
         playlist_identifier=args.playlist,
-        display_summary=True
     )
     
-    if not song_files:
-        print(f"{Fore.YELLOW}No matching songs found.{Fore.RESET}")
+    # Check if some songs match selection crieria
+    # iI none, then return
+    try:
+        check_and_display_song_selection_result(song_files)
+    except SystemExit:
         return
 
     _process_songs(song_files, args.verbose)
 
 
-def _process_songs(song_files: List[Path], verbose: bool) -> None:
+def _process_songs(song_files: list[Path], verbose: bool) -> None:
     """
     Process each song, displaying information and handling URL opening.
     
@@ -62,44 +73,18 @@ def _process_songs(song_files: List[Path], verbose: bool) -> None:
     """
 
     count_formatter = CountFormatter(len(song_files))
-    label_formatter = LabelFormatter(9)
 
     for index, song_file in enumerate(song_files, 1):
         song = SongModel(song_file)
         counter = count_formatter.format(index)
         
-        print(f"\n{format_song_display(counter, song)}")
+        print(f"\n{format_song_display(song, counter)}")
         
         if verbose:
-            _display_verbose_info(count_formatter, label_formatter, song)
+            print(format_song_details_display(song, count_formatter))
             
         if _should_open_url():
             _open_youtube_url(song.youtube_id)
-
-
-def _display_verbose_info(
-        count_formatter: CountFormatter, 
-        label_formatter: LabelFormatter, 
-        song: SongModel
-    ) -> None:
-
-    """
-    Display detailed song information in verbose mode.
-
-    Args:
-        progress: Progress counter for formatting
-        formatter: Label formatter for consistent output
-        song: SongModel object containing song details
-    """
-    placeholder = count_formatter.placeholder()
-    print(f"{placeholder}  {label_formatter.format('Playlist')}"
-        + f"{Fore.LIGHTBLUE_EX}{song.playlist}{Fore.RESET}")
-    
-    print(f"{placeholder}  {label_formatter.format('Filename')}"
-        + f"{Fore.LIGHTBLUE_EX}{song.filename}{Fore.RESET}")
-    
-    print(f"{placeholder}  {label_formatter.format('Link')}"
-        + f"{Fore.LIGHTBLUE_EX}https://youtu.be/{song.youtube_id}{Fore.RESET}")
 
 
 def _should_open_url() -> bool:
@@ -110,11 +95,11 @@ def _should_open_url() -> bool:
         bool: True if user wants to open URL, False otherwise
     """
 
-    response = input(
-        f"{Style.BRIGHT}{Fore.LIGHTBLUE_EX}Do you want to open video for this song "
-        + f"{Style.RESET_ALL}({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? "
+    response = prompt_user(
+        "Do you want to open video for this song",
+        ["yes", "no"]
     )
-    return response.lower() == "yes"
+    return response == "yes"
 
 
 def _open_youtube_url(youtube_id: str) -> None:

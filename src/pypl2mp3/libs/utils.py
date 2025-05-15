@@ -18,9 +18,95 @@ import re
 from typing import Optional
 
 # Third party packages
-from colorama import Fore, Style
+from colorama import Back, Fore, Style
 from slugify import slugify
 from thefuzz import fuzz
+
+
+@dataclass
+class LabelFormatter:
+    """
+    Utility class for formatting left-justified labels.
+    """
+    
+    width: int
+    
+    def format(self, label: str) -> str:
+        """
+        Format a label with consistent width and styling.
+        
+        Args:
+            label: Label text to format
+
+        Returns:
+            Formatted label string
+        """
+        return (
+            f"{Fore.WHITE}{Style.DIM}"
+            f"{label.ljust(self.width)} "
+            f"{Style.RESET_ALL}"
+        )
+    
+    def pad_only(self, label: str) -> str:
+        """
+        Format a label with consistent width but no styling.
+        
+        Args:
+            label: Label text
+
+        Returns:
+            Right-padded label
+        """
+        return f"{label.ljust(self.width)}"
+
+
+@dataclass
+class CountFormatter:
+    """
+    Utility class for formatting progress counters.
+    """
+    
+    total_count: int
+    
+    def __post_init__(self):
+        self.number_width = max(2, len(str(self.total_count)))
+        self.width = self.number_width * 2 + 1
+    
+    def format(self, current: int) -> str:
+        """
+        Format a progress counter (e.g., '01/10').
+        
+        Args:
+            current: Current count
+
+        Returns:
+            Formatted progress counter string
+        """
+        
+        return (
+            f"{Fore.LIGHTBLUE_EX}{Style.BRIGHT}" 
+            f"{str(current).rjust(self.number_width, '0')}"
+            f"{Style.DIM}/{Style.RESET_ALL}{Fore.BLUE}"
+            f"{str(self.total_count).rjust(self.number_width, '0')}"
+            f"{Style.RESET_ALL}"
+        )
+    
+    def placeholder(self, text: str = '') -> str:
+        """
+        Create a placeholder of appropriate width.
+        
+        Args:
+            text: Text to display in the placeholder
+            
+        Returns:
+            Formatted placeholder string
+        """
+
+        return (
+            f"{Fore.LIGHTGREEN_EX}" 
+            f"{text[:self.width].ljust(self.width)}"
+            f"{Style.RESET_ALL}"
+        )
 
 
 def get_song_id_from_filename(filename: str) -> Optional[str]:
@@ -128,6 +214,7 @@ def natural_sort_key(key: str) -> tuple[str, str]:
     
     Args:
         key: Key from which derivating deterministic naturel sort key pair
+
     Returns:
         Tuple of (normalized key, original key)
     """
@@ -135,110 +222,107 @@ def natural_sort_key(key: str) -> tuple[str, str]:
     return slugify(str(key)).casefold(), str(key)
 
 
-def format_song_display(counter: str, song: any) -> str:
+def prompt_user(question: str, options: list[str]) -> str:
+    """
+    Format choices to be displayed in a prompt.
+    
+    Args:
+        question: Question to the user
+        options: List of possible answers
+
+    Returns:
+        String of formatted options (e.g., "(yes/no/retry) ? ")
+    """
+
+    formatted_options = [
+        f"{Fore.CYAN}{opt}{Fore.RESET}" for opt in options
+    ]
+    return input(
+        f"{Style.BRIGHT}{Fore.WHITE}"
+        f"{question}{Fore.RESET} " 
+        f" ({'/'.join(formatted_options)}) ? "
+    ).lower()
+
+
+def check_and_display_song_selection_result(songs: list):
+    """
+    Display song selection result.
+    
+    Args:
+        song: List of songs
+
+    Returns:
+        Formatted string
+    """
+    
+    songCount = len(songs) if songs else 0
+    if songCount > 0:
+        print(
+            f"\n{Back.YELLOW}{Style.BRIGHT}" 
+            f" Found {len(songs)} songs matching selection criteria "
+            f"{Style.RESET_ALL}"
+        )
+    else:
+        print(
+            f"\n{Back.MAGENTA}{Style.BRIGHT}" 
+            f" No songs match the selection criteria "
+            f"{Style.RESET_ALL}"
+        )
+        raise SystemExit("No songs match the selection criteria")
+
+
+def format_song_display(song: any, counter: str) -> str:
     """
     Format song information for display.
     
     Args:
-        counter: Song number in list (e.g., '03/07)
         song: Song object with artist, title, duration attributes
+        counter: Song number in list (e.g., '03/07)
 
     Returns:
         Formatted string with song details
     """
 
-    junk_indicator = " (JUNK)" if song.has_junk_filename else ""
+    junk_indicator = "  (JUNK)" if song.has_junk_filename else ""
     
     return (
         f"{counter}  "
         f"{Fore.WHITE}{song.duration}  "
-        f"{Fore.LIGHTCYAN_EX}{Style.BRIGHT}{song.artist}  "
-        f"{Fore.LIGHTYELLOW_EX}{song.title}{Fore.MAGENTA}"
-        f"{junk_indicator}{Fore.RESET}{Style.RESET_ALL}"
+        f"{Style.BRIGHT}"
+        f"{Fore.LIGHTGREEN_EX}{song.artist}  "
+        f"{Fore.LIGHTYELLOW_EX}{song.title}"
+        f"{Fore.MAGENTA}{junk_indicator}"
+        f"{Style.RESET_ALL}"
     )
 
 
-@dataclass
-class LabelFormatter:
+def format_song_details_display(
+        song: any, 
+        count_formatter: CountFormatter
+    ) -> None:
     """
-    Utility class for formatting left-justified labels.
-    """
-    
-    width: int
-    
-    def format(self, label: str) -> str:
-        """
-        Format a label with consistent width and styling.
-        
-        Args:
-            label: Label text to format
+    Display detailed information about a song.
 
-        Returns:
-            Formatted label string
-        """
-        return (
-            f"{Fore.WHITE}{Style.DIM}"
-            f"{label.ljust(self.width)} "
-            f"{Style.RESET_ALL}"
+    Args:
+        song: Song model containing song metadata
+        count_formatter: Counter for formatting song number
+    """
+    
+    label_formatter = LabelFormatter(9)
+    placeholder = count_formatter.placeholder()
+    
+    fields = {
+        "Playlist": song.playlist,
+        "Filename": song.filename,
+        "Link": f"https://youtu.be/{song.youtube_id}"
+    }
+    
+    items = []
+    for label, value in fields.items():
+        items.append(
+            f"{placeholder}  "
+            f"{label_formatter.format(label)}"
+            f"{Fore.LIGHTBLUE_EX}{value}{Style.RESET_ALL}"
         )
-    
-    def pad_only(self, label: str) -> str:
-        """
-        Format a label with consistent width but no styling.
-        
-        Args:
-            label: Label text
 
-        Returns:
-            Right-padded label
-        """
-        return f"{label.ljust(self.width)}"
-
-
-@dataclass
-class CountFormatter:
-    """
-    Utility class for formatting progress counters.
-    """
-    
-    total_count: int
-    
-    def __post_init__(self):
-        self.number_width = max(2, len(str(self.total_count)))
-        self.width = self.number_width * 2 + 1
-    
-    def format(self, current: int) -> str:
-        """
-        Format a progress counter (e.g., '01/10').
-        
-        Args:
-            current: Current count
-
-        Returns:
-            Formatted progress counter string
-        """
-        
-        return (
-            f"{Fore.LIGHTGREEN_EX}{Style.BRIGHT}" 
-            f"{str(current).rjust(self.number_width, '0')}"
-            f"{Style.DIM}/{Style.RESET_ALL}{Fore.GREEN}"
-            f"{str(self.total_count).rjust(self.number_width, '0')}"
-            f"{Style.RESET_ALL}"
-        )
-    
-    def placeholder(self, text: str = '') -> str:
-        """
-        Create a placeholder of appropriate width.
-        
-        Args:
-            text: Text to display in the placeholder
-            
-        Returns:
-            Formatted placeholder string
-        """
-
-        return (
-            f"{Fore.LIGHTGREEN_EX}" 
-            f"{text[:self.width].ljust(self.width)}"
-            f"{Style.RESET_ALL}"
-        )
+    return '\n'.join(items)

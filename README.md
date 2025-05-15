@@ -245,6 +245,7 @@ Options:
 - `-f, --filter <filter>`: Filter songs using keywords and sort by relevance
 - `-m, --match <percent>`: Filter match threshold (0-100, default: 45)
 - `-p, --prompt`: Prompt to removes ID3 tags and cover art from each song
+- `-v, --verbose`: Enable verbose output
 
 This command batch cleanup metadata for all selected songs and rename them as 
 "junk". It also provides a prompt mode to confirm cleanup song by song.

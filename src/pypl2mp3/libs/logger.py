@@ -3,8 +3,8 @@
 PYPL2MP3: YouTube playlist MP3 converter and player,
 with Shazam song identification and tagging capabilities.
 
-This module provides a custom logger class for logging messages
-to both console and file. It includes methods for logging at different
+This module provides a custom logger class for logging messages to  
+both console and file. It includes methods for logging at different
 levels (debug, info, warning, error, critical) and allows for 
 customization of the logging format and handlers.
 
@@ -19,7 +19,10 @@ import sys
 import traceback
 
 # Third-party packages
-from colorama import Fore, Style
+from colorama import Fore, Style, init
+
+# Automatically clear style on each print
+init(autoreset=True)
 
 
 class Logger:
@@ -57,11 +60,11 @@ class Logger:
         Args:
             console_handler_level: The logging level for console output 
                 ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL").
-            verbose_errors_enabled: A boolean indicating whether to include
+            verbose_errors_enabled: Whether to include
                 verbose error messages for console and file logging.
             file_handler_log_file: The path of the log file to write logs to.
-            file_handler_enabled: A boolean indicating whether to enable file logging.
-            file_handler_traceback_enabled: A boolean indicating whether to include
+            file_handler_enabled: Whether to enable file logging.
+            file_handler_traceback_enabled: Whether to include
                 traceback information in the messages logged in log file.
         """
 
@@ -72,12 +75,15 @@ class Logger:
         self.verbose_errors_enabled: bool = verbose_errors_enabled
 
         self.console_handler: logging.StreamHandler | None = None
-        self.console_handler_level: int = self.LOG_LEVELS.get(console_handler_level, logging.INFO)
+        self.console_handler_level: int = \
+            self.LOG_LEVELS.get(console_handler_level, logging.INFO)
 
         self.file_handler: logging.FileHandler | None = None
         self.file_handler_log_file: str | None = file_handler_log_file
-        self.file_handler_level: int = self.LOG_LEVELS.get(file_handler_level, logging.DEBUG)
-        self.file_handler_traceback_enabled: bool = file_handler_traceback_enabled
+        self.file_handler_level: int = \
+            self.LOG_LEVELS.get(file_handler_level, logging.DEBUG)
+        self.file_handler_traceback_enabled: bool = \
+            file_handler_traceback_enabled
 
         # Set up the console handler
         self._add_console_handler()
@@ -107,7 +113,9 @@ class Logger:
         # of exceptions and store them shortened in the tracebacks list
         # (e.g., type + error message)
         while tbe:
-            tracebacks.append("".join(tbe.format_exception_only()).replace("\n", ""))
+            tracebacks.append(
+                "".join(tbe.format_exception_only()).replace("\n", "")
+            )
             tbe = tbe.__cause__ or tbe.__context__
 
         # Return the tracebacks list
@@ -176,8 +184,10 @@ class Logger:
                     tracebacks = parent._get_short_tracebacks(record.exc_info)
                     tracebacks_len = len(tracebacks)
                     for i, msg in enumerate(tracebacks, 0):
-                        log_entry += f"\n{color}{' ' * (len(record.levelname) + 3)}" \
-                            + f"{Style.BRIGHT}[{tracebacks_len - i}]{Style.NORMAL} {msg}{Style.RESET_ALL}"
+                        log_entry += \
+                            f"\n{color}{' ' * (len(record.levelname) + 3)}" \
+                            + f"{Style.BRIGHT}[{tracebacks_len - i}]" \
+                            + f"{Style.NORMAL} {msg}{Style.RESET_ALL}"
 
                 # Return the formatted log entry
                 return log_entry
@@ -211,7 +221,8 @@ class Logger:
 
     def disable_console_handler(self) -> None:
         """
-        Disables console logging by removing the console handler from the logger.
+        Disables console logging by removing the console handler 
+        from the logger.
         If the console handler doesn't exist, it does nothing.
         """
 
@@ -251,7 +262,8 @@ class Logger:
                 Formats the log record into a string.
                 This method is called when a log message is emitted.
                 It handles the formatting of the log message, including
-                the log level, message, and exception information when provided.
+                the log level, message, and exception information when 
+                provided.
 
                 Args:
                     record: The log record to be formatted.
@@ -267,6 +279,7 @@ class Logger:
                     message = record.getMessage()
                     for i, msg in enumerate(tracebacks, 0):
                         message += f"\n\t[{tracebacks_len - i}] {msg}"
+
                     # Replace the record message with the one containing the 
                     # original message and the shortened exception chain
                     record.msg = message   
@@ -274,21 +287,26 @@ class Logger:
                 # If traceback is not enabled and record is not
                 # a critical log, set the exception information to None
                 # to prevent it from being logged along with the log entry
-                if not parent.file_handler_traceback_enabled and record.levelno != logging.CRITICAL:
+                if not parent.file_handler_traceback_enabled \
+                    and record.levelno != logging.CRITICAL:
+
                     record.exc_info = None  # 
 
                 # If traceback is enabled, add newline to the record massage
                 # to separate the log entry from the exception information
                 if record.exc_info and record.levelno >= logging.ERROR:
+
                     record.msg = f"{record.msg}\n\n"
 
-                # Format record according to the format specified in the handler constructor
+                # Format record according to the format 
+                # specified in the handler constructor
                 log_entry = super().format(record)
 
-                # If exception info is available and the log level is ERROR or CRITICAL,
-                # surround the log entry with newlines to separate it from other logs
-                # and make it more readable
+                # If exception info is available and the log level is ERROR 
+                # or CRITICAL, surround the log entry with newlines to separate
+                # it from other logs and make it more readable
                 if record.exc_info and record.levelno >= logging.ERROR:
+
                     log_entry = f"\n{log_entry}\n"
 
                 # Return the formatted log record
@@ -426,7 +444,7 @@ class Logger:
 
         Args:
             error: The exception to be logged.
-            msg: An optional message to be logged in place of the exception message.
+            msg: An optional message to be logged in place of the exception one.
         """
 
         self.logger.error(msg or str(error), exc_info=True)
@@ -447,17 +465,19 @@ class Logger:
 
         Args:
             error: The critical error to be logged.
-            msg: An optional message to be logged in place of the exception message.
+            msg: An optional message to be logged in place of the exception one.
         """
 
         self.logger.critical(msg or str(error), exc_info=True)
 
 
-# Create a global logger instance (singleton) to be used throughout all the application modules.
+# Create a global logger instance (singleton) to be used throughout all 
+# the application modules.
 #
-# IMPORTANT : Because PYPL2MP3 application uses log messages by design to interact with the user, 
-# this instance is configured to only log WARNING, ERROR and CRITICAL level messages to the console.
+# IMPORTANT : Because PYPL2MP3 application uses log messages by design 
+# to interact with the user, this instance is configured to only log WARNING, 
+# ERROR and CRITICAL level messages to the console.
 #
-# The file handler is disabled by default and can be enabled via program options (-d or -D). 
+# The file handler is disabled by default and can be enabled via CLI (-d or -D). 
 # When enabled, it will log all level messages (DEBUG and above) to a log file.
 logger = Logger(console_handler_level="WARNING")

@@ -12,18 +12,27 @@ Repository: https://github.com/webcoder31/pypl2mp3
 
 # Python core modules
 from pathlib import Path
-from typing import Any, List
 
 # Third party packages
-from colorama import Fore, Style
+from colorama import Fore, Style, init
 
 # pypl2mp3 libs
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
-from pypl2mp3.libs.utils import CountFormatter, format_song_display
+from pypl2mp3.libs.utils import (
+    CountFormatter, 
+    LabelFormatter, 
+    check_and_display_song_selection_result,
+    format_song_display,
+    format_song_details_display,
+    prompt_user
+)
+
+# Automatically clear style on each print
+init(autoreset=True)
 
 
-def junkize_songs(args: Any) -> None:
+def junkize_songs(args: any) -> None:
     """
     Remove ID3 tags from song files based on provided arguments 
     and rename them marked as "junk".
@@ -40,7 +49,7 @@ def junkize_songs(args: Any) -> None:
         FileNotFoundError: If the repository path doesn't exist
     """
 
-    should_prompt_per_song = args.prompt
+    prompt = args.prompt
     
     # Get list of songs matching criteria
     song_files = get_repository_song_files(
@@ -48,26 +57,28 @@ def junkize_songs(args: Any) -> None:
         keywords=args.keywords,
         filter_match_threshold=args.match,
         playlist_identifier=args.playlist,
-        display_summary=True
     )
 
-    if not song_files:
-        print(f"{Fore.YELLOW}No matching songs found.{Style.RESET_ALL}")
+    # Check if some songs match selection crieria
+    # iI none, then return
+    try:
+        check_and_display_song_selection_result(song_files)
+    except SystemExit:
         return
 
-    if not _confirm_bulk_operation(should_prompt_per_song):
+    if not prompt and not _confirm_bulk_operation():
         return
 
-    _process_songs(song_files, should_prompt_per_song)
+    _process_songs(song_files, prompt, args.verbose)
 
 
-def _process_songs(song_files: List[Path], should_prompt_per_song: bool) -> None:
+def _process_songs(song_files: list[Path], prompt: bool, verbose: bool) -> None:
     """
     Process each song file for make it "junk".
 
     Args:
         song_files: List of paths to song files
-        should_prompt_per_song: Whether to prompt for confirmation for each song
+        prompt: Whether to prompt for confirmation for each song
     """
 
     count_formatter = CountFormatter(len(song_files))
@@ -76,35 +87,35 @@ def _process_songs(song_files: List[Path], should_prompt_per_song: bool) -> None
         counter = count_formatter.format(index)
         song = SongModel(song_file)
         
-        print(f"\n{format_song_display(counter, song)}  "
-            + f"{Fore.WHITE + Style.DIM}[https://youtu.be/{song.youtube_id}]")
+        print(
+            f"\n{format_song_display(song, counter)}  "
+            f"{Fore.WHITE + Style.DIM}[https://youtu.be/{song.youtube_id}]"
+        )
 
-        if should_prompt_per_song and not _confirm_single_song():
+        if verbose:
+            print(format_song_details_display(song, count_formatter))
+
+        if prompt and not _confirm_single_song():
             continue
 
         _junkize_single_song(song)
 
 
-def _confirm_bulk_operation(should_prompt_per_song: bool) -> bool:
+def _confirm_bulk_operation() -> bool:
     """
     Request user confirmation for bulk operation.
-
-    Args:
-        should_prompt_per_song: Whether individual prompts will be shown
 
     Returns:
         bool: True if user confirms, False otherwise
     """
 
-    if should_prompt_per_song:
-        return True
-
-    confirmation = input(
-        f"\n{Style.BRIGHT}{Fore.LIGHTBLUE_EX}This will make \"junk\" all songs found. Continue "
-        + f"{Style.RESET_ALL}({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? "
+    confirmation = prompt_user(
+        "About to clear metadata for all songs and make them \"junk\"" \
+            + "Do you want to proceed",
+        ["yes", "no"]
     )
 
-    return confirmation.lower() == "yes"
+    return confirmation == "yes"
 
 
 def _confirm_single_song() -> bool:
@@ -115,9 +126,9 @@ def _confirm_single_song() -> bool:
         bool: True if user confirms, False otherwise
     """
 
-    confirmation = input(
-        f"{Style.BRIGHT}{Fore.LIGHTBLUE_EX}Do you want to clear metadata for this song and make it \"junk\""
-        + f"{Style.RESET_ALL} ({Fore.CYAN}yes{Fore.RESET}/{Fore.CYAN}no{Fore.RESET}) ? "
+    confirmation = prompt_user(
+        "Do you want to clear metadata for this song and make it \"junk\"",
+        ["yes", "no"]
     )
 
     return confirmation.lower() == "yes"
@@ -128,10 +139,12 @@ def _junkize_single_song(song: SongModel) -> None:
     Remove tags from a single song and rename it.
 
     Args:
-        song: SongModel instance to be untagged
+        song: SongModel instance to be made junk
     """
 
     song.reset_state()
     song.fix_filename()
     
-    print(f"Song untagged and renamed to: {Fore.LIGHTCYAN_EX}{song.filename}{Fore.RESET}")
+    print(
+        f"Song made \"junk\" and renamed to: {Fore.LIGHTCYAN_EX}{song.filename}"
+    )

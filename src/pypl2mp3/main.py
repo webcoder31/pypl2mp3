@@ -30,6 +30,9 @@ from rich.markdown import Markdown # NOTE: installed with rich_argparse package
 # pypl2mp3 libs
 from pypl2mp3.libs.logger import logger
 
+# Automatically clear style on each print
+init(autoreset=True)
+
 
 def _check_required_binaries(commands: list[str]) -> None:
     """
@@ -491,6 +494,12 @@ def main():
         default=False,
         help="Prompt to junkize each songs"
     )
+    junkize_songs_command.add_argument(
+        "-v", "--verbose", 
+        action="store_true",
+        default=False,
+        help="Enable verbose output"
+    )
 
     junkize_songs_command.set_defaults(func=_run_junkize_songs)
 
@@ -598,10 +607,6 @@ def main():
     print()
     args = cliParser.parse_args(args=None if sys.argv[1:] else ["--help"])
 
-    # Automatically reset sequences to turn off 
-    # color changes at the end of every print
-    init(autoreset = True)
-
     # Set up debug logging
     if args.debug or args.deep:
 
@@ -619,33 +624,52 @@ def main():
             enable_traceback=args.deep
         )
 
-    # Log start of program execution
-    start_date = (datetime.datetime.now()).time().strftime('%H:%M:%S')
-    logger.info("PYPL2MP3 started at " + start_date)
-    print(f"{Fore.LIGHTGREEN_EX}PYPL2MP3 STARTED AT {start_date}\n")
+    # Display and log start of program execution
+    start_time = (datetime.datetime.now()).time().strftime('%H:%M:%S')
+    print(f"{Fore.LIGHTGREEN_EX}PYPL2MP3 STARTED AT {start_time}\n")
+    logger.info("PYPL2MP3 started at " + start_time)
     
-    # Log current configuration
+    # Display and log current configuration
     logger.info("Configuration: " 
-        + f"Repository = {default_repository_path}, "
+        + f"default repository = {default_repository_path}, "
         + f"Favorite playlist id = {default_playlist_id}"
     )
 
-    # Log ran command with main options
+    # Display and log ran command with main options
     current_command = f"Command: {args.command.upper()}"
-    if "playlist" in args:
-        current_command += f", Playlist = \"{args.playlist}\""
-    if "keywords" in args and "match" in args:
-        current_command += f", Filter = \"{args.keywords}\""
-        current_command += f", Match threshold = {args.match}%"
-    if args.command in {"import", "fix"}:
-        current_command += f", Shazam match threshold = {args.thresh}%"
-    logger.info(current_command)
+    print(f"{Fore.WHITE}{Style.DIM}⇨ Invoked command ....... {Style.NORMAL}"
+        + f"{Fore.LIGHTCYAN_EX}{Style.BRIGHT}{args.command.upper()}"
+    )
 
-    print(f"{Fore.WHITE + Style.DIM}⇨ Playlists repository:  {Style.NORMAL}"
-        + f"{Fore.LIGHTBLUE_EX}{default_repository_path}")
+    current_command += f", Repository = \"{args.repo}\""
+    print(f"{Fore.WHITE}{Style.DIM}⇨ Repository ............ {Style.NORMAL}"
+        + f"{Fore.LIGHTBLUE_EX}{args.repo}")
     
-    print(f"{Fore.WHITE + Style.DIM}⇨ Favorite playlist ID:  {Style.NORMAL}"
-        + f"{Fore.LIGHTBLUE_EX}{default_playlist_id}")
+    selected_playlist = "All"
+    if "playlist" in args and args.playlist != None:
+        selected_playlist = args.playlist
+    current_command += f", Playlist = \"{selected_playlist}\""
+    print(f"{Fore.WHITE}{Style.DIM}⇨ Playlist .............. {Style.NORMAL}"
+        + f"{Fore.LIGHTBLUE_EX}{selected_playlist}"
+    )
+
+    if "keywords" in args and args.keywords != "" and "match" in args:
+        current_command += f", Filter keywords = \"{args.keywords}\""
+        current_command += f", Filter threshold = {args.match}% match"
+        print(f"{Fore.WHITE}{Style.DIM}⇨ Filter keywords ....... {Style.NORMAL}"
+            + f"{Fore.LIGHTCYAN_EX}{Style.BRIGHT}{args.keywords}"
+        )
+        print(f"{Fore.WHITE}{Style.DIM}⇨ Filter threshold ...... {Style.NORMAL}"
+            + f"{Fore.LIGHTBLUE_EX}{args.match}% match"
+        )
+        
+    if args.command in {"import", "fix"}:
+        current_command += f", Shazam threshold = {args.thresh}% match"
+        print(f"{Fore.WHITE}{Style.DIM}⇨ Shazam threshold ...... {Style.NORMAL}"
+            + f"{Fore.LIGHTBLUE_EX}{args.thresh}% match"
+        )
+
+    logger.info(current_command)
 
     # Check required binaries for relevant commands
     if args.command in {"import", "fix", "junkize"}:
@@ -668,9 +692,9 @@ def main():
         )
 
     # Log end of program execution
-    end_date = (datetime.datetime.now()).time().strftime('%H:%M:%S')
-    logger.info("PYPL2MP3 finished at " + end_date)
-    print(f"\n{Fore.LIGHTGREEN_EX}PYPL2MP3 FINISHED AT {end_date}\n")
+    end_time = (datetime.datetime.now()).time().strftime('%H:%M:%S')
+    logger.info("PYPL2MP3 finished at " + end_time)
+    print(f"\n{Fore.LIGHTGREEN_EX}PYPL2MP3 FINISHED AT {end_time}\n")
 
 
 # Main entry point

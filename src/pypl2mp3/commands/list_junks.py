@@ -14,20 +14,29 @@ Repository: https://github.com/webcoder31/pypl2mp3
 
 # Python core modules
 from pathlib import Path
-from typing import Any, List
 
 # Third party packages
-from colorama import Fore
+from colorama import Fore, init
 
 # pypl2mp3 libs
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
-from pypl2mp3.libs.utils import LabelFormatter, CountFormatter, format_song_display
+from pypl2mp3.libs.utils import (
+    LabelFormatter, 
+    CountFormatter, 
+    check_and_display_song_selection_result,
+    format_song_display,
+    format_song_details_display
+)
+
+# Automatically clear style on each print
+init(autoreset=True)
 
 
-def list_junks(args: Any) -> None:
+def list_junks(args: any) -> None:
     """
-    List all songs marked as junk in the repository, with optional filtering and detailed information.
+    List all songs marked as junk in the repository, 
+    with optional filtering and detailed information.
 
     Args:
         args: Command line arguments containing:
@@ -47,17 +56,19 @@ def list_junks(args: Any) -> None:
         keywords=args.keywords,
         filter_match_threshold=args.match,
         playlist_identifier=args.playlist,
-        display_summary=True
     )
 
-    if not song_files:
-        print(f"{Fore.YELLOW}No matching junk songs found.{Fore.RESET}")
+    # Check if some songs match selection crieria
+    # iI none, then return
+    try:
+        check_and_display_song_selection_result(song_files)
+    except SystemExit:
         return
 
-    _display_song_information(song_files, args.verbose)
+    _display_songs(song_files, args.verbose)
 
 
-def _display_song_information(song_files: list[str], verbose: bool) -> None:
+def _display_songs(song_files: list[str], verbose: bool) -> None:
     """
     Display information about songs, either in brief or verbose format.
 
@@ -75,15 +86,19 @@ def _display_song_information(song_files: list[str], verbose: bool) -> None:
         counter = count_formatter.format(index)
         song = SongModel(song_file)
         
-        print(("", "\n")[verbose] + format_song_display(counter, song))
+        print(("", "\n")[verbose] + format_song_display(song, counter))
         
         if verbose:
-            _display_verbose_information(song, count_formatter)
+            print(format_song_details_display(song, count_formatter))
+            _print_song_status(song, count_formatter)
 
 
-def _display_verbose_information(song: SongModel, count_formatter: CountFormatter) -> None:
+def _print_song_status(
+        song: SongModel, 
+        count_formatter: CountFormatter
+    ) -> None:
     """
-    Display detailed information about a song including playlist, filename, and status.
+    Display status of a song
 
     Args:
         song: Song model instance
@@ -93,38 +108,26 @@ def _display_verbose_information(song: SongModel, count_formatter: CountFormatte
     label_formatter = LabelFormatter(9)
     placeholder = count_formatter.placeholder()
 
-    # Display basic information
-    print(f"{placeholder}  {label_formatter.format('Playlist')}"
-        + f"{Fore.LIGHTBLUE_EX}{song.playlist}{Fore.RESET}")
-    print(f"{placeholder}  {label_formatter.format('Filename')}"
-        + f"{Fore.LIGHTBLUE_EX}{song.filename}{Fore.RESET}")
-    print(f"{placeholder}  {label_formatter.format('Link')}"
-        + f"{Fore.LIGHTBLUE_EX}https://youtu.be/{song.youtube_id}{Fore.RESET}")
-
-    # Display status information
-    status_message = _get_song_status_message(song)
-    print(f"{placeholder}  {label_formatter.format('Status')}{status_message}")
-
-
-def _get_song_status_message(song: SongModel) -> str:
-    """
-    Generate appropriate status message for a song based on its state.
-
-    Args:
-        song: Song model instance
-
-    Returns:
-        str: Formatted status message with color coding
-    """
-
     if song.should_be_tagged or not song.has_cover_art:
-        return (f"{Fore.MAGENTA}Song is not tagged or is missing cover art "
-              + f"and should be youtubed first before being fixed.{Fore.RESET}")
+        status_message = (
+            f"{Fore.MAGENTA}Song is not tagged or is missing cover art "
+            f"and should be youtubed first before being fixed."
+        )
     if song.should_be_shazamed:
-        return (f"{Fore.MAGENTA}Song is tagged and has cover art but it "
-              + f"should be shazamed to get trusted ones.{Fore.RESET}")
+        status_message = (
+            f"{Fore.MAGENTA}Song is tagged and has cover art but it "
+            f"should be shazamed to get trusted ones."
+        )
     if song.should_be_renamed:
-        return (f"{Fore.MAGENTA}Song is shazamed and tagged but it "
-              + f"should be renamed.{Fore.RESET}")
-    return (f"{Fore.LIGHTYELLOW_EX}Song is shazamed, tagged and named accordingly. "
-          + f"Unjunk it using \"--prompt\" option{Fore.RESET}")
+        status_message = (
+            f"{Fore.MAGENTA}Song is shazamed and tagged but it "
+            f"should be renamed."
+        )
+    status_message = (
+        f"{Fore.LIGHTGREEN_EX}Song is shazamed, tagged and named accordingly. "
+        f"Unjunk it using \"--prompt\" option"
+    )
+
+    print(
+        f"{placeholder}  {label_formatter.format('Status')}{status_message}"
+    )

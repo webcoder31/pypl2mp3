@@ -16,7 +16,7 @@ Repository: https://github.com/webcoder31/pypl2mp3
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import List, Optional, Callable
+from typing import Optional, Callable
 
 # Third party packages
 from colorama import Fore, Back, Style, init
@@ -28,15 +28,17 @@ from pypl2mp3.libs.logger import logger
 from pypl2mp3.libs.repository import get_repository_playlist
 from pypl2mp3.libs.song import SongModel
 from pypl2mp3.libs.utils import (
+    LabelFormatter,
+    CountFormatter,
     get_song_id_from_filename,
     get_song_id_from_url,
     get_match_score,
-    LabelFormatter,
-    CountFormatter
+    prompt_user
 )
 
 # Automatically clear style on each print
 init(autoreset=True)
+
 
 class ImportPlaylistException(AppBaseException):
     """
@@ -81,10 +83,10 @@ class ImportReport:
         Initialize the import report with empty lists for each category.
         """
 
-        self.shazamed_songs: List[SongReport] = []
-        self.junk_songs: List[SongReport] = []
-        self.skipped_songs: List[SongReport] = []
-        self.failed_imports: List[SongReport] = []
+        self.shazamed_songs: list[SongReport] = []
+        self.junk_songs: list[SongReport] = []
+        self.skipped_songs: list[SongReport] = []
+        self.failed_imports: list[SongReport] = []
 
 
     def print_import_report(self, total_songs: int, junk_songs: int) -> None:
@@ -213,15 +215,18 @@ def _create_progress_callback(label_formatter: LabelFormatter) -> Callable:
         Callback function to update the progress bar.
         """
 
+        percentage = int(percentage)
+
         label = label_formatter.format(label)
         progress_filled = "■" * int(percentage / 2)
         progress_empty = "□" * (50 - int(percentage / 2))
-        progress_bar = f"{Fore.LIGHTRED_EX}{progress_filled}{Fore.RESET}" \
-                     + f"{Fore.LIGHTRED_EX}{progress_empty}{Fore.RESET}"
+        progress_bar = \
+            f"{Fore.LIGHTRED_EX}{progress_filled}" \
+            + f"{progress_empty}{Fore.RESET}"
         
         print(("", "\x1b[K")[percentage < 100], end="\r")
         print(
-            f"{label}{progress_bar} {Style.DIM}{int(percentage)}%".strip() + " ", 
+            f"{label}{progress_bar} {Style.DIM}{percentage}%".strip() + " ", 
             end=("\n", "")[percentage < 100], 
             flush=True
         )
@@ -254,20 +259,20 @@ async def _import_song(
 
     progress_callback = _create_progress_callback(label_formatter)
     
-    async def before_connect(youtube_id):
-        label = label_formatter.format("Connecting to YouTube API:")
+    async def pre_fetch_video_info(youtube_id):
+        label = label_formatter.format("Fetching video information:")
         print(f"{label}Please, wait... ", end="", flush=True)
         
-    async def after_connect(props):
-        label = label_formatter.format("Connecting to YouTube API:")
+    async def post_fetch_video_info(props):
+        label = label_formatter.format("Fetching video information:")
         print("\x1b[K", end="\r")
         print(f"{label}Ready to import video")
 
-    async def before_shazam(song):
+    async def pre_shazam(song):
         label = label_formatter.format("Shazam-ing audio track:")
         print(f"{label}Please, wait... ", end="", flush=True)
         
-    async def after_shazam(song):
+    async def post_shazam(song):
         label = label_formatter.format("Shazam-ing audio track:")
         print("\x1b[K", end="\r")
         print(
@@ -283,22 +288,22 @@ async def _import_song(
         shazam_threshold,
         verbose=True,
         use_default_verbosity=False,
-        before_connect_to_video=before_connect,
-        after_connect_to_video=after_connect,
-        progress_logger_for_download_audio=SimpleNamespace(
+        pre_fetch_video_info=pre_fetch_video_info,
+        post_fetch_video_info=post_fetch_video_info,
+        on_download_audio=SimpleNamespace(
             label="Streaming audio:",
             callback=progress_callback
         ),
-        progress_logger_for_encode_to_mp3=SimpleNamespace(
+        on_mp3_encode=SimpleNamespace(
             label="Encoding audio stream to MP3:",
             callback=progress_callback
         ),
-        progress_logger_for_download_cover_art=SimpleNamespace(
+        on_download_cover_art=SimpleNamespace(
             label="Downloading cover art:",
             callback=progress_callback
         ),
-        before_shazam_song=before_shazam,
-        after_shazam_song=after_shazam
+        pre_shazam_song=pre_shazam,
+        post_shazam_song=post_shazam
     )
 
     return song
@@ -331,9 +336,9 @@ async def import_playlist(args) -> None:
     logger.info(f"Retrieving data for playlist \"{selected_playlist.id}\"")
 
     print(
-        f"\n{Fore.LIGHTGREEN_EX}Retrieving YouTube playlist from:" 
+        f"\n{Fore.LIGHTCYAN_EX}Retrieving YouTube playlist from:" 
         + f"\n{Fore.LIGHTYELLOW_EX}{selected_playlist.url}"
-        + f"\n{Fore.LIGHTGREEN_EX}Please, wait...\n"
+        + f"\n{Fore.LIGHTCYAN_EX}Please, wait...\n"
     )
     
     # Retrieve YouTube playlist data and handle potential errors
@@ -341,7 +346,7 @@ async def import_playlist(args) -> None:
         plst = Playlist(selected_playlist.url, "WEB")
     except Exception as exc:
         raise ImportPlaylistException(
-            f"Failed to retrieve playlist \"{selected_playlist.id}\" from YouTube"
+            f"Failed to get playlist \"{selected_playlist.id}\" from YouTube"
         ) from exc
 
     # Check if playlist data is empty
@@ -358,7 +363,8 @@ async def import_playlist(args) -> None:
     
     # Display playlist information
     print(
-        f"{Back.YELLOW}{Style.BRIGHT} Found {len(plst.videos)}/{plst.length} " 
+        f"{Back.YELLOW}{Style.BRIGHT}" 
+        + f" Found {len(plst.videos)}/{plst.length} " 
         + f"accessible videos in playlist \"{plst.title}\" " 
         + f"owned by \"{plst.owner}\" "
     )
@@ -460,7 +466,7 @@ async def import_playlist(args) -> None:
                 f"{line_break}{counter}{Fore.WHITE}" 
                 + f" ⇨ Match too low ({match_score:.1f}%)".ljust(padding, " ")
                 + f" {Fore.RESET}{Fore.GREEN}{song_name}{Fore.RESET}" 
-                + f" {Fore.BLUE}[{video.video_id}]"
+                + f" {Fore.BLUE}{Style.DIM}[{video.video_id}]"
             )
 
             # Disable line break for consecutive 
@@ -477,21 +483,19 @@ async def import_playlist(args) -> None:
         # Display new video to import
         print(
             f"\n{counter}{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}" 
-            + " ⇨ New video to import!".ljust(padding, " ") 
+            + " ⇨ New video to import  ==>".ljust(padding, " ") 
             + f" {Fore.LIGHTGREEN_EX}{song_name}{Fore.RESET}" 
-            + f" {Fore.BLUE}[{video.video_id}]"
+            + f" {Fore.YELLOW}{Style.DIM}[https://youtu.be/{video.video_id}]"
         )
         
         # Prompt user to add new song to playlist
         if args.prompt: 
 
             try:
-                response = input(
-                    f"{Fore.LIGHTBLUE_EX}{Style.BRIGHT}Do you want " 
-                    + f"to import new song in playlist{Style.RESET_ALL} " 
-                    + f"({Fore.CYAN}yes{Fore.RESET}/" 
-                    + f"{Fore.CYAN}no{Fore.RESET}/" 
-                    + f"{Fore.CYAN}abort{Fore.RESET}) ? ")
+                response = prompt_user(
+                    "Do you want to import new song in playlist",
+                    ["yes", "no"]
+                )
                 
                 if response != "yes" and response != "abort":
                     # Skip song if user chooses not to import
@@ -510,7 +514,10 @@ async def import_playlist(args) -> None:
                 
             except KeyboardInterrupt:
                 # Print import report and let interrupt bubble
-                report.print_import_report(len(existing_songs), len(junk_songs))
+                report.print_import_report(
+                    len(existing_songs), 
+                    len(junk_songs)
+                )
                 raise
 
         # Import song from YouTube
@@ -535,7 +542,8 @@ async def import_playlist(args) -> None:
                 report.shazamed_songs.append(SongReport(
                     youtube_id = video.video_id, 
                     song_name = f"{video.author} - {video.title}", 
-                    detail = f'Shazam match score OK ({song.shazam_match_score}%)',
+                    detail = \
+                        f'Shazam match OK ({song.shazam_match_score}%)',
                     filename = song.filename
                 ))
             else:
@@ -551,7 +559,8 @@ async def import_playlist(args) -> None:
                 report.junk_songs.append(SongReport(
                     youtube_id = video.video_id, 
                     song_name = f"{video.author} - {video.title}",  
-                    reason = f'Shazam match score too low ({song.shazam_match_score}%)',
+                    reason = \
+                        f'Shazam match too low ({song.shazam_match_score}%)',
                     filename = song.filename
                 ))
 

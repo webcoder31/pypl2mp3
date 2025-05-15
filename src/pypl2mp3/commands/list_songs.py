@@ -13,18 +13,25 @@ Repository: https://github.com/webcoder31/pypl2mp3
 
 # Python core modules
 from pathlib import Path
-from typing import Any
 
 # Third party packages
-from colorama import Fore
+from colorama import Fore, init
 
 # pypl2mp3 libs
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
-from pypl2mp3.libs.utils import LabelFormatter, CountFormatter, format_song_display
+from pypl2mp3.libs.utils import (
+    CountFormatter, 
+    check_and_display_song_selection_result,
+    format_song_display,
+    format_song_details_display
+)
+
+# Automatically clear style on each print
+init(autoreset=True)
 
 
-def list_songs(args: Any) -> None:
+def list_songs(args: any) -> None:
     """
     List songs from the repository with optional filtering and verbose output.
 
@@ -45,11 +52,13 @@ def list_songs(args: Any) -> None:
         keywords=args.keywords,
         filter_match_threshold=args.match,
         playlist_identifier=args.playlist,
-        display_summary=True
     )
 
-    if not song_files:
-        print(f"{Fore.YELLOW}No matching songs found.{Fore.RESET}")
+    # Check if some songs match selection crieria
+    # iI none, then return
+    try:
+        check_and_display_song_selection_result(song_files)
+    except SystemExit:
         return
     
     if not args.verbose:
@@ -73,31 +82,7 @@ def _display_songs(song_files: list[Path], verbose: bool) -> None:
         counter = count_formatter.format(index)
         song = SongModel(song_file)
         
-        print(("", "\n")[verbose] + format_song_display(counter, song))
+        print(("", "\n")[verbose] + format_song_display(song, counter))
         
         if verbose:
-            _display_verbose_info(song, count_formatter)
-
-
-def _display_verbose_info(song: SongModel, count_formatter: CountFormatter) -> None:
-    """
-    Display detailed information about a song.
-
-    Args:
-        song: Song model containing song metadata
-        count_formatter: Counter for formatting output
-    """
-    
-    label_formatter = LabelFormatter(9)
-    placeholder = count_formatter.placeholder()
-    
-    verbose_fields = {
-        "Playlist": song.playlist,
-        "Filename": song.filename,
-        "Link": f"https://youtu.be/{song.youtube_id}"
-    }
-    
-    for label, value in verbose_fields.items():
-        print(f"{placeholder}  "
-            + f"{label_formatter.format(label)}"
-            + f"{Fore.LIGHTBLUE_EX}{value}{Fore.RESET}")
+            print(format_song_details_display(song, count_formatter))

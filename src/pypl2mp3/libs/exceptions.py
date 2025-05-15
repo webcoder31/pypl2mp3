@@ -44,6 +44,9 @@ class AppBaseException(Exception):
         """
 
         # if self.__cause__:
-        #     return f"{self.message} --> {type(self.__cause__).__name__}: {self.__cause__.__str__()}"
+        #     return (
+        #         f"{self.message} --> {type(self.__cause__).__name__}: "
+        #         f"{self.__cause__.__str__()}"
+        #     )
         
         return self.message

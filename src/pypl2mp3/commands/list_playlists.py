@@ -14,10 +14,9 @@ Repository: https://github.com/webcoder31/pypl2mp3
 from pathlib import Path
 import re
 from dataclasses import dataclass
-from typing import Any, List
 
 # Third party packages
-from colorama import Fore, Back, Style
+from colorama import Fore, Back, Style, init
 
 # pypl2mp3 libs
 from pypl2mp3.libs.utils import (
@@ -25,6 +24,9 @@ from pypl2mp3.libs.utils import (
     natural_sort_key, 
     get_song_id_from_filename
 )
+
+# Automatically clear style on each print
+init(autoreset=True)
 
 
 @dataclass
@@ -45,7 +47,7 @@ class PlaylistStats:
         return self.total_songs - self.junk_songs
 
 
-def list_playlists(args: Any) -> None:
+def list_playlists(args: any) -> None:
     """
     List all playlists in the repository with their song statistics.
 
@@ -60,13 +62,17 @@ def list_playlists(args: Any) -> None:
     playlist_paths = _get_playlist_paths(repository_path)
     
     if not playlist_paths:
-        raise Exception("No playlist found in repository.")
+        print(f"{Back.MAGENTA}{Style.BRIGHT}"
+            + f" No playlists found in repository ")
+        return
+    else:
+        print(f"\n{Back.YELLOW}{Style.BRIGHT}"
+            + f" Found {len(playlist_paths)} playlists in repository. ")
     
-    _display_playlists_header(len(playlist_paths))
     _display_playlists_details(playlist_paths)
 
 
-def _get_playlist_paths(repository_path: Path) -> List[Path]:
+def _get_playlist_paths(repository_path: Path) -> list[Path]:
     """
     Retrieve and sort playlist paths from the repository.
 
@@ -74,7 +80,7 @@ def _get_playlist_paths(repository_path: Path) -> List[Path]:
         repository_path: Path to the repository containing playlists
 
     Returns:
-        List[Path]: Sorted list of playlist paths
+        list[Path]: Sorted list of playlist paths
     """
 
     playlist_pattern = re.compile(r"^.*\[(.?[^\]]+)\]$")
@@ -85,18 +91,6 @@ def _get_playlist_paths(repository_path: Path) -> List[Path]:
     playlist_paths.sort(key=natural_sort_key)
 
     return playlist_paths
-
-
-def _display_playlists_header(playlist_count: int) -> None:
-    """
-    Display the header showing the total number of playlists.
-
-    Args:
-        playlist_count: Number of playlists found
-    """
-
-    print(f"\n{Back.GREEN}{Style.BRIGHT}"
-        + f"Found {playlist_count} playlists in repository.{Style.RESET_ALL}")
 
 
 def _get_playlist_stats(playlist_path: Path) -> PlaylistStats:
@@ -116,7 +110,7 @@ def _get_playlist_stats(playlist_path: Path) -> PlaylistStats:
     return PlaylistStats(len(all_songs), len(junk_songs))
 
 
-def _display_playlists_details(playlist_paths: List[Path]) -> None:
+def _display_playlists_details(playlist_paths: list[Path]) -> None:
     """
     Display detailed information for each playlist.
 
@@ -127,22 +121,32 @@ def _display_playlists_details(playlist_paths: List[Path]) -> None:
     count_formatter = CountFormatter(len(playlist_paths))
     placeholder = count_formatter.placeholder()
     
-    for index, playlist_path in enumerate(playlist_paths, 1):
+    for index, path in enumerate(playlist_paths, 1):
         counter = count_formatter.format(index)
-        playlist_youtube_id = get_song_id_from_filename(playlist_path.name)
-        playlist_name = playlist_path.name.replace(f"[{playlist_youtube_id}]", "").strip()
-        stats = _get_playlist_stats(playlist_path)
+        playlist_id = get_song_id_from_filename(path.name)
+        playlist_name = path.name.replace(f"[{playlist_id}]", "").strip()
+        stats = _get_playlist_stats(path)
         
         # Display playlist information
-        print(f"\n{counter}  "
-            + f"{Fore.LIGHTYELLOW_EX}{playlist_name}{Style.RESET_ALL}")
-        print(f"{placeholder}  "
-            + f"{Fore.CYAN}ID: {Style.DIM}{playlist_youtube_id}{Style.RESET_ALL}")
+        print(
+            f"\n{counter}  "
+            f"{Fore.LIGHTYELLOW_EX}{playlist_name}"
+        )
+        print(
+            f"{placeholder}  "
+            f"{Fore.LIGHTBLUE_EX}{Style.BRIGHT}ID: {Style.NORMAL}{playlist_id}"
+        )
         
         # Display playlist statistics
-        print(f"{placeholder}  {Style.BRIGHT}"
-            + f"Number of well tagged songs .... {stats.valid_songs}{Style.RESET_ALL}")
-        print(f"{placeholder}  {Style.BRIGHT}"
-            + f"Number of junk songs ........... {stats.junk_songs}{Style.RESET_ALL}")
-        print(f"{placeholder}  {Fore.LIGHTCYAN_EX}{Style.BRIGHT}"
-            + f"Total .......................... {stats.total_songs}{Fore.RESET}")
+        print(
+            f"{placeholder}  {Style.BRIGHT}"
+            f"Number of well tagged songs .... {stats.valid_songs}"
+        )
+        print(
+            f"{placeholder}  {Style.BRIGHT}"
+            f"Number of junk songs ........... {stats.junk_songs}"
+        )
+        print(
+            f"{placeholder}  {Fore.LIGHTGREEN_EX}{Style.BRIGHT}"
+            f"Total .......................... {stats.total_songs}"
+        )

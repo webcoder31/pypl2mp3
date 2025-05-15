@@ -24,10 +24,10 @@ import random
 from threading import Thread
 import webbrowser
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 # Third party packages
-from colorama import Fore, Style
+from colorama import Fore, Style, init
 from sshkeyboard import listen_keyboard, stop_listening
 
 # Import pygame
@@ -40,7 +40,16 @@ import pygame
 from pypl2mp3.libs.exceptions import AppBaseException
 from pypl2mp3.libs.repository import get_repository_song_files
 from pypl2mp3.libs.song import SongModel
-from pypl2mp3.libs.utils import LabelFormatter, CountFormatter, format_song_display
+from pypl2mp3.libs.utils import (
+    LabelFormatter, 
+    CountFormatter, 
+    check_and_display_song_selection_result,
+    format_song_display,
+    format_song_details_display
+)
+
+# Automatically clear style on each print
+init(autoreset=True)
 
 
 class PlaySongException(AppBaseException):
@@ -66,7 +75,7 @@ class PlayerState:
         verbose: Flag for verbose output
         player_thread: Thread instance for running the player
     """
-    song_files: List[Path] = None
+    song_files: list[Path] = None
     song_count: int = 0
     current_index: int = -1
     current_url: Optional[str] = None
@@ -125,7 +134,11 @@ def _get_next_song_index(current: int, direction: str, total: int) -> int:
     return next_index
 
 
-def _display_song_info(song: SongModel, counter: str, is_next: bool = False) -> None:
+def _display_song_information(
+        song: SongModel, 
+        counter: str, 
+        is_next: bool = False
+    ) -> None:
     """
     Display song information with formatting.
 
@@ -141,24 +154,22 @@ def _display_song_info(song: SongModel, counter: str, is_next: bool = False) -> 
 
     if not is_next:
         print("\033[2K\033[1G", end="\r")  # Clear line
-        print(format_song_display(counter, song))
+        print(format_song_display(song, counter))
         
         if player.verbose:
-            formatter = LabelFormatter(9)
-            print(f"{player.count_formatter.placeholder()}  "
-                  f"{formatter.format('Playlist')}{Fore.LIGHTBLUE_EX}{song.playlist}{Fore.RESET}")
-            print(f"{player.count_formatter.placeholder()}  "
-                  f"{formatter.format('Filename')}{Fore.LIGHTBLUE_EX}{song.filename}{Fore.RESET}")
-            print(f"{player.count_formatter.placeholder()}  "
-                  f"{formatter.format('Link')}{Fore.LIGHTBLUE_EX}https://youtu.be/{song.youtube_id}{Fore.RESET}")
+            print(format_song_details_display(song, player.count_formatter))
     else:
         next_counter = player.count_formatter.placeholder(
             "<--" if player.play_direction == "backward" else "-->"
         )
-        print(("\n" if player.verbose else "") + 
-              f"{next_counter}  {Fore.LIGHTYELLOW_EX + Style.DIM}{song.duration}  "
-              f"{song.artist}  {song.title}{' (JUNK)' if song.has_junk_filename else ''}{Style.RESET_ALL}",
-              end="", flush=True)
+        print(
+            ("\n" if player.verbose else "") + 
+            f"{next_counter}  {Fore.LIGHTYELLOW_EX}{Style.DIM}{song.duration}  "
+            f"{song.artist}  {song.title}" 
+            f"{' (JUNK)' if song.has_junk_filename else ''}{Style.RESET_ALL}",
+            end="", 
+            flush=True
+        )
 
 
 def _run_playback_loop() -> None:
@@ -178,14 +189,14 @@ def _run_playback_loop() -> None:
         player.current_url = f"https://youtu.be/{current_song.youtube_id}"
 
         counter = player.count_formatter.format(player.current_index + 1)
-        _display_song_info(current_song, counter)
+        _display_song_information(current_song, counter)
 
         next_index = _get_next_song_index(
             player.current_index, player.play_direction, player.song_count
         )
 
         next_song = SongModel(player.song_files[next_index])
-        _display_song_info(next_song, "", is_next=True)
+        _display_song_information(next_song, "", is_next=True)
 
         try:
             pygame.mixer.music.load(current_file)
@@ -193,7 +204,8 @@ def _run_playback_loop() -> None:
             clock = pygame.time.Clock()
             player.is_running = True
 
-            while player.is_running and (pygame.mixer.music.get_busy() or player.is_paused):
+            while player.is_running \
+                    and (pygame.mixer.music.get_busy() or player.is_paused):
                 clock.tick(1)
 
         # except KeyboardInterrupt:
@@ -203,11 +215,15 @@ def _run_playback_loop() -> None:
         except pygame.error as exc:
             # Handle pygame error during playback
             _cleanup_player()
-            raise PlaySongException(f"Audio mixer error playing song: {current_file}") from exc
+            raise PlaySongException(
+                f"Audio mixer error playing song: {current_file}"
+            ) from exc
         except Exception as exc:
             # Handle any other unexpected errors
             _cleanup_player()
-            raise PlaySongException(f"Unexpected error playing song: {current_file}") from exc
+            raise PlaySongException(
+                f"Unexpected error playing song: {current_file}"
+            ) from exc
 
 
 async def _handle_keypress(key: str) -> None:
@@ -222,7 +238,7 @@ async def _handle_keypress(key: str) -> None:
         "right": lambda: setattr(player, "play_direction", "forward"),
         "left": lambda: setattr(player, "play_direction", "backward"),
         "space": _toggle_pause,
-        "tab": lambda: webbrowser.open(player.current_url, new=0, autoraise=True),
+        "tab": lambda: webbrowser.open(player.current_url),
         "esc": _cleanup_player
     }
 
@@ -261,8 +277,10 @@ def _display_controls() -> None:
 
     print()
     for key, description in controls:
-        print(f"{Fore.LIGHTMAGENTA_EX}{Style.BRIGHT}[{key}]{Style.RESET_ALL}"
-              f"  {Fore.LIGHTMAGENTA_EX}{description}{Fore.RESET}")
+        print(
+            f"{Fore.LIGHTMAGENTA_EX}{Style.BRIGHT}[{key}]  {Style.RESET_ALL}"
+            f"{Fore.LIGHTMAGENTA_EX}{description}"
+        )
     print()
 
 
@@ -288,11 +306,13 @@ def play_songs(args) -> None:
         filter_match_threshold=args.match,
         song_index=args.index,
         playlist_identifier=args.playlist,
-        display_summary=True
     )
 
-    if not player.song_files:
-        print(f"{Fore.YELLOW}No matching songs found.{Fore.RESET}")
+    # Check if some songs match selection crieria
+    # iI none, then return
+    try:
+        check_and_display_song_selection_result(player.song_files)
+    except SystemExit as exc:
         return
 
     if args.shuffle:

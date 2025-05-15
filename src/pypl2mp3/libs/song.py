@@ -22,7 +22,7 @@ from types import SimpleNamespace
 import urllib.request
 
 # Third party packages
-from colorama import Fore, Style
+from colorama import Fore, Style, init
 from moviepy.editor import AudioFileClip
 from mutagen.id3 import TIT2, TPE1, TXXX, APIC
 import mutagen.mp3
@@ -36,6 +36,9 @@ from thefuzz import fuzz
 from pypl2mp3.libs.exceptions import AppBaseException
 from pypl2mp3.libs.utils import LabelFormatter
 
+# Automatically clear style on each print
+init(autoreset=True)
+
 
 class SongModelException(AppBaseException):
     """
@@ -48,12 +51,13 @@ class SongModel:
     """
     Song model class representing a song object
     
-    Note: MP3 files are saved in ID3v2.3 only, without ID3v1 (default is ID3v2.4)
+    Note: MP3 files are saved with ID3v2.3 tags only
     """
 
     class TerminalProgressBar():
         """
-        Inner base class providing a method in charge of printing progress bar in terminal
+        Inner base class providing a method in charge 
+        of printing progress bar in terminal
         """
 
         def __init__(self, progress_callback=None, label=""):
@@ -67,12 +71,12 @@ class SongModel:
 
             self.label_formatter = LabelFormatter(min(33, len(label)))
             self.label = label
-            self.base_label = label.strip()
-            self.base_label_suffix = ""
+            self.label_base = label.strip()
+            self.label_suffix = ""
 
-            if self.base_label[-1] == ":":
-                self.base_label = self.base_label[:-1]
-                self.base_label_suffix = ":"
+            if self.label_base[-1] == ":":
+                self.label_base = self.label_base[:-1]
+                self.label_suffix = ":"
 
             self.previous_percentage = 0
             self.progress_callback = self.default_progress_callback
@@ -90,8 +94,8 @@ class SongModel:
             """
 
             progress_bar = (
-                f"{Fore.LIGHTRED_EX}{('■' * int(percentage / 2))}{Fore.RESET}" \
-                + f"{Fore.LIGHTRED_EX}{('□' * (50 - int(percentage / 2)))}{Fore.RESET}"
+                f"{Fore.LIGHTRED_EX}{('■' * int(percentage / 2))}"
+                f"{('□' * (50 - int(percentage / 2)))}{Fore.RESET}"
             )
 
             print(("", "\x1b[K")[percentage < 100], end="\r")
@@ -99,7 +103,8 @@ class SongModel:
                   + f" {Style.DIM}{int(percentage)}%").strip() 
                   + f" {Style.RESET_ALL}",
                 end=("\n", "")[percentage < 100],
-                flush=True)
+                flush=True
+            )
 
         def update_progress_bar(self, percentage) -> None:
             """
@@ -113,11 +118,14 @@ class SongModel:
 
             if percentage != self.previous_percentage:
 
-                if int(percentage)-int(self.previous_percentage) > 10:
-                    # If percentage is too high, update progress bar in small steps
-                    # to avoid flickering
-                    for x in range(int(percentage)-int(self.previous_percentage)):
-                        cur_percentage = max(0, min(100, self.previous_percentage + x + 1))
+                if percentage - self.previous_percentage > 10:
+                    # If percentage is too high, update progress bar 
+                    # by small steps to avoid flickering
+                    for x in range(percentage - self.previous_percentage):
+                        cur_percentage = max(
+                            0, 
+                            min(100, self.previous_percentage + x + 1)
+                        )
                         self.progress_callback(cur_percentage, label=self.label)
                         time.sleep(0.01)
                 else:
@@ -128,7 +136,7 @@ class SongModel:
 
     class AudioStreamDownloadProgressBar(TerminalProgressBar):
         """
-        Inner class to display audio stream download progress bar (extends TerminalProgressBar)
+        Inner class to display audio stream download progress bar
         """
 
         def update(self, stream, chunk, bytes_remaining) -> None:
@@ -141,16 +149,20 @@ class SongModel:
                 bytes_remaining: Remaining bytes to download
             """
 
-            self.label = f"{self.base_label} ({stream.filesize_mb} Mb){self.base_label_suffix}"
-            bytes_remaining = max(0, bytes_remaining)  # avoid negative values (assuming 0 is the end)
-            percentage = ((stream.filesize - bytes_remaining) / stream.filesize) * 100
+            self.label = \
+                f"{self.label_base} ({stream.filesize_mb} Mb)" \
+                + f"{self.label_suffix}"
+            bytes_remaining = \
+                max(0, bytes_remaining)  # avoid negative values
+            percentage = \
+                ((stream.filesize - bytes_remaining) / stream.filesize) * 100
 
             self.update_progress_bar(percentage)
 
 
     class CoverArtDownloadProgressBar(TerminalProgressBar):
         """
-        Inner class to display cover art download progress bar (extends TerminalProgressBar)
+        Inner class to display cover art download progress bar
         """
         
         def update(self, count, block_size, total_size) -> None:
@@ -163,16 +175,20 @@ class SongModel:
                 total_size: Total size of the file
             """
 
-            self.label = f"{self.base_label} ({int(total_size / 1024)} Kb){self.base_label_suffix}"
-            percentage = min([int(count * block_size * 100 / total_size), 100])
+            self.label = \
+                f"{self.label_base} ({int(total_size / 1024)} Kb)" \
+                    + f"{self.label_suffix}"
+            percentage = \
+                min([int(count * block_size * 100 / total_size), 100])
 
             self.update_progress_bar(percentage)
 
 
     class Mp3EncodingProgressBar(ProgressBarLogger):
         """
-        Inner class extending ProgressBarLogger of "proglog" module which is expected
-        by an AudioFileClip stream instance to log MP3 encoding progress
+        Inner class extending ProgressBarLogger of "proglog" module 
+        which is expected by an AudioFileClip stream instance to log 
+        MP3 encoding progress
         """
 
         def __init__(self, progress_callback=None, label="", **kwargs):
@@ -246,20 +262,21 @@ class SongModel:
             shazam_match_threshold=50, 
             verbose=True, 
             use_default_verbosity=True,
-            before_connect_to_video=None, 
-            after_connect_to_video=None,
-            before_download_audio=None, 
-            progress_logger_for_download_audio=None, 
-            after_download_audio=None,
-            before_encode_to_mp3=None, 
-            progress_logger_for_encode_to_mp3=None, 
-            after_encode_to_mp3=None,
-            before_download_cover_art=None, 
-            progress_logger_for_download_cover_art=None, 
-            after_download_cover_art=None, 
-            on_delete_cover_art=None,
-            before_shazam_song=None, 
-            after_shazam_song=None
+            pre_fetch_video_info=None, 
+            post_fetch_video_info=None,
+            pre_download_audio=None, 
+            on_download_audio=None, 
+            post_download_audio=None,
+            pre_mp3_encode=None, 
+            on_mp3_encode=None, 
+            post_mp3_encode=None,
+            pre_download_cover_art=None, 
+            on_download_cover_art=None, 
+            post_download_cover_art=None, 
+            pre_delete_cover_art=None,
+            post_delete_cover_art=None,
+            pre_shazam_song=None, 
+            post_shazam_song=None
         ) -> "SongModel":
         """
         Create a Song instance from YouTube (static method)
@@ -267,23 +284,24 @@ class SongModel:
         Args:
             youtube_id: YouTube video ID
             dest_folder_path: Destination folder path for MP3 file
-            shazam_match_threshold: Shazam match threshold (default is 50)
-            verbose: Verbosity level (default is True)
-            use_default_verbosity: Use default verbosity logging (default is True)
-            before_connect_to_video: Callback before connecting to YouTube video
-            after_connect_to_video: Callback after connecting to YouTube video
-            before_download_audio: Callback before downloading audio stream
-            progress_logger_for_download_audio: Progress logger for audio download
-            after_download_audio: Callback after downloading audio stream
-            before_encode_to_mp3: Callback before encoding to MP3
-            progress_logger_for_encode_to_mp3: Progress logger for MP3 encoding
-            after_encode_to_mp3: Callback after encoding to MP3
-            before_download_cover_art: Callback before downloading cover art
-            progress_logger_for_download_cover_art: Progress logger for cover art download
-            after_download_cover_art: Callback after downloading cover art
-            on_delete_cover_art: Callback when cover art is deleted
-            before_shazam_song: Callback before shazaming song
-            after_shazam_song: Callback after shazaming song
+            shazam_match_threshold: Shazam match threshold (default: 50)
+            verbose: Verbosity level (default: True)
+            use_default_verbosity: Use default verbosity logging (default: True)
+            pre_fetch_video_info: Callback before fetching video information
+            post_fetch_video_info: Callback after fetching video information
+            pre_download_audio: Callback before downloading audio
+            on_download_audio: Progress logger for audio download
+            post_download_audio: Callback after downloading audio
+            pre_mp3_encode: Callback before encoding to MP3
+            on_mp3_encode: Progress logger for MP3 encoding
+            post_mp3_encode: Callback after encoding to MP3
+            pre_download_cover_art: Callback before downloading cover art
+            on_download_cover_art: Progress logger for cover art download
+            post_download_cover_art: Callback after downloading cover art
+            pre_delete_cover_art: Callback before deleting cover art
+            post_delete_cover_art: Callback after deleting cover art
+            pre_shazam_song: Callback before shazaming song
+            post_shazam_song: Callback after shazaming song
 
         Returns:
             Song instance
@@ -294,167 +312,218 @@ class SongModel:
         
         # Disable verbosity logging
         if verbose != True:
-            before_connect_to_video = None 
-            after_connect_to_video = None
-            before_download_audio = None 
-            progress_logger_for_download_audio = None 
-            after_download_audio = None
-            before_encode_to_mp3 = None 
-            progress_logger_for_encode_to_mp3 = None 
-            after_encode_to_mp3 = None
-            before_download_cover_art = None 
-            progress_logger_for_download_cover_art = None 
-            after_download_cover_art = None 
-            on_delete_cover_art = None
-            before_shazam_song = None 
-            after_shazam_song = None
+            pre_fetch_video_info = None 
+            post_fetch_video_info = None
+            pre_download_audio = None 
+            on_download_audio = None 
+            post_download_audio = None
+            pre_mp3_encode = None 
+            on_mp3_encode = None 
+            post_mp3_encode = None
+            pre_download_cover_art = None 
+            on_download_cover_art = None 
+            post_download_cover_art = None 
+            pre_delete_cover_art = None
+            post_delete_cover_art = None
+            pre_shazam_song = None 
+            post_shazam_song = None
 
         # Activate default verbosity logging
         if verbose and use_default_verbosity:
 
             label_formatter = LabelFormatter(33)
             
-            async def before_connect_to_video(youtube_id):
-                print(label_formatter.format("Connecting to YouTube API:") 
+            async def pre_fetch_video_info(youtube_id):
+                print(label_formatter.format("Fetching video information:") 
                     + f"Please, wait... ", end="", flush=True)
 
-            async def after_connect_to_video(video_properties):
+            async def post_fetch_video_info(video_props):
                 print("\x1b[K", end="\r")
-                print(label_formatter.format("Connecting to YouTube API:") 
-                    + f"Ready to import video \"{video_properties.youtube_id}\"")
+                print(label_formatter.format("Fetching video information:") 
+                    + f"Ready to import video \"{video_props.youtube_id}\"")
 
-            async def before_download_audio(video_properties, m4aPath):
+            async def pre_download_audio(video_props, m4aPath):
                 pass
     
-            progress_logger_for_download_audio = SimpleNamespace(
+            on_download_audio = SimpleNamespace(
                 label="Streaming audio: ",
                 callback=None
             )
     
-            async def after_download_audio(video_properties, m4aPath):
+            async def post_download_audio(video_props, m4aPath):
                 pass
     
-            async def before_encode_to_mp3(video_properties, m4aPath, mp3_path):
+            async def pre_mp3_encode(video_props, m4aPath, mp3_path):
                 pass
     
-            progress_logger_for_encode_to_mp3 = SimpleNamespace(
+            on_mp3_encode = SimpleNamespace(
                 label="Encoding audio stream to MP3: ",
                 callback=None
             )
     
-            async def after_encode_to_mp3(video_properties, m4aPath, mp3_path):
+            async def post_mp3_encode(video_props, m4aPath, mp3_path):
                 pass
     
-            async def before_download_cover_art(song):
+            async def pre_download_cover_art(song):
                 pass
     
-            progress_logger_for_download_cover_art = SimpleNamespace(
+            on_download_cover_art = SimpleNamespace(
                 label="Downloading cover art: ",
                 callback=None
             )
     
-            async def after_download_cover_art(song):
+            async def post_download_cover_art(song):
                 pass
     
-            async def on_delete_cover_art(song):
+            async def post_delete_cover_art(song):
                 pass
     
-            async def before_shazam_song(song):
-                print(label_formatter.format("Shazaming audio track:") 
-                    + f"Please, wait... ", end="", flush=True)
+            async def pre_shazam_song(song):
+                print(
+                    label_formatter.format("Shazaming audio track:") 
+                    + f"Please, wait... ", 
+                    end="", 
+                    flush=True
+                )
     
-            async def after_shazam_song(song):
+            async def post_shazam_song(song):
                 print("\x1b[K", end="\r")
-                print(label_formatter.format("Shazam match result:") 
-                    + f"Artist: {Fore.LIGHTCYAN_EX}{song.shazam_artist}{Fore.RESET}, " 
-                    + f"Title: {Fore.LIGHTCYAN_EX}{song.shazam_title}{Fore.RESET}, " 
-                    + f"Match: {Fore.LIGHTCYAN_EX}{song.shazam_match_score}%{Fore.RESET}")
+                print(
+                    label_formatter.format("Shazam match result:") 
+                    + f"Artist: {Fore.LIGHTCYAN_EX}" 
+                    + f"{song.shazam_artist}{Fore.RESET}, " 
+                    + f"Title: {Fore.LIGHTCYAN_EX}" 
+                    + f"{song.shazam_title}{Fore.RESET}, " 
+                    + f"Match: {Fore.LIGHTCYAN_EX}" 
+                    + f"{song.shazam_match_score}%{Fore.RESET}"
+                )
  
         # Connect to YouTube video to get song information
         try:
-            if before_connect_to_video is not None:
-                await before_connect_to_video(youtube_id)
+            if pre_fetch_video_info is not None:
+                await pre_fetch_video_info(youtube_id)
 
-            video = YouTube(f"https://youtube.com/watch?v={youtube_id}", client="WEB")
-            video_properties = SimpleNamespace(
+            video_url = f"https://youtube.com/watch?v={youtube_id}"
+            video = YouTube(video_url, client="WEB")
+            video_props = SimpleNamespace(
                 youtube_id=video.video_id,
                 artist=video.author,
                 title=video.title,
                 cover_art_url=video.thumbnail_url
             )
 
-            if after_connect_to_video is not None:
-                await after_connect_to_video(video_properties)
+            if post_fetch_video_info is not None:
+                await post_fetch_video_info(video_props)
         except Exception as exc:
-            raise SongModelException(f"Failed to connect to YouTube video \"{youtube_id}\"") from exc
+            raise SongModelException(
+                f"Failed to fetch information "
+                f"for YouTube video \"{youtube_id}\""
+            ) from exc
         
         # Download YouTube video audio stream
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_m4a_path = Path(temp_dir) / "temp.m4a"
             temp_mp3_path = Path(dest_folder_path) / "temp (JUNK).mp3"
 
-            # Set up progress logger for audio download
-            if progress_logger_for_download_audio is not None:
+            # Set up progress bar for audio download
+            if on_download_audio is not None:
                 mp3_encode_logger = SongModel.AudioStreamDownloadProgressBar(
-                    progress_callback=progress_logger_for_download_audio.callback, 
-                    label=progress_logger_for_download_audio.label
+                    progress_callback=on_download_audio.callback, 
+                    label=on_download_audio.label
                 )
                 video.register_on_progress_callback(mp3_encode_logger.update)
 
-            # Call before_download_audio hook if provided
-            if before_download_audio is not None:
+            # Call pre_download_audio hook if provided
+            if pre_download_audio is not None:
                 try:
-                    await before_download_audio(video_properties, temp_m4a_path)
+                    await pre_download_audio(video_props, temp_m4a_path)
                 except Exception as exc:
-                    raise SongModelException(f"Hook \"before_download_audio\" failed for YouTube video \"{youtube_id}\"") from exc
+                    raise SongModelException(
+                        f"Hook \"pre_download_audio\" failed "
+                        f"for YouTube video \"{youtube_id}\""
+                    ) from exc
 
             # Download audio stream
             try:
                 m4a_stream = video.streams.get_audio_only()
+
                 if m4a_stream is None:
-                    raise SongModelException(f"Cannot get audio stream for YouTube video \"{youtube_id}\"")
+                    raise SongModelException(
+                        f"Cannot get audio stream "
+                        f"for YouTube video \"{youtube_id}\""
+                    )
                 
-                request.default_range_size = 1179648 # 1.12 MB chunk size (default is 9 MB)
-                m4a_stream.download(output_path=Path(temp_dir), filename="temp.m4a")
+                # Use 1.12 MB chunk chunk for download (default: 9 MB)
+                request.default_range_size = 1179648
+                m4a_stream.download(
+                    output_path=Path(temp_dir), 
+                    filename="temp.m4a"
+                )
             except Exception as exc:
-                raise SongModelException(f"Failed to stream audio track for YouTube video \"{youtube_id}\"") from exc
+                raise SongModelException(
+                    f"Failed to stream audio track "
+                    f"for YouTube video \"{youtube_id}\""
+                ) from exc
             
-            # Call after_download_audio hook if provided
-            if after_download_audio is not None:
+            # Call post_download_audio hook if provided
+            if post_download_audio is not None:
                 try:
-                    await after_download_audio(video_properties, temp_m4a_path)
+                    await post_download_audio(video_props, temp_m4a_path)
                 except Exception as exc:
-                    raise SongModelException(f"Hook \"after_download_audio\" failed for YouTube video \"{youtube_id}\"") from exc
+                    raise SongModelException(
+                        f"Hook \"post_download_audio\" failed "
+                        f"for YouTube video \"{youtube_id}\""
+                    ) from exc
             
-            # Set up progress logger for MP3 encoding
+            # Set up progress bar for MP3 encoding
             mp3_encode_logger = None
-            if progress_logger_for_encode_to_mp3 is not None:
+            if on_mp3_encode is not None:
                 mp3_encode_logger = SongModel.Mp3EncodingProgressBar(
-                    progress_callback=progress_logger_for_encode_to_mp3.callback, 
-                    label=progress_logger_for_encode_to_mp3.label
+                    progress_callback=on_mp3_encode.callback, 
+                    label=on_mp3_encode.label
                 )
 
-            # Call before_encode_to_mp3 hook if provided
-            if before_encode_to_mp3 is not None:
+            # Call pre_mp3_encode hook if provided
+            if pre_mp3_encode is not None:
                 try:
-                    await before_encode_to_mp3(video_properties, temp_m4a_path, temp_mp3_path)
+                    await pre_mp3_encode(
+                        video_props, 
+                        temp_m4a_path, 
+                        temp_mp3_path
+                    )
                 except Exception as exc:
-                    raise SongModelException(f"Hook \"before_encode_to_mp3\" failed for YouTube video \"{youtube_id}\"") from exc
+                    raise SongModelException(
+                        f"Hook \"pre_mp3_encode\" failed "
+                        f"for YouTube video \"{youtube_id}\""
+                    ) from exc
                 
             # Encode audio stream to MP3 file
             try:
                 mp3_stream = AudioFileClip(str(temp_m4a_path))
-                mp3_stream.write_audiofile(str(temp_mp3_path), logger=mp3_encode_logger)
+                mp3_stream.write_audiofile(
+                    str(temp_mp3_path), 
+                    logger=mp3_encode_logger
+                )
                 mp3_stream.close()
             except Exception as exc:
-                raise SongModelException(f"Failed to encode audio stream to MP3 for YouTube video \"{youtube_id}\"") from exc
+                raise SongModelException(
+                    f"Failed to encode audio stream to MP3 "
+                    f"for YouTube video \"{youtube_id}\""
+                ) from exc
             
-            # Call after_encode_to_mp3 hook if provided
-            if after_encode_to_mp3 is not None:
+            # Call post_mp3_encode hook if provided
+            if post_mp3_encode is not None:
                 try:
-                    await after_encode_to_mp3(video_properties, temp_m4a_path, temp_mp3_path)
+                    await post_mp3_encode(
+                        video_props, 
+                        temp_m4a_path, 
+                        temp_mp3_path
+                    )
                 except Exception as exc:
-                    raise SongModelException(f"Hook \"after_encode_to_mp3\" failed for YouTube video \"{youtube_id}\"") from exc
+                    raise SongModelException(
+                        f"Hook \"post_mp3_encode\" failed "
+                        f"for YouTube video \"{youtube_id}\""
+                    ) from exc
             
             # Create song object from MP3 file and YouTube song information 
             song = SongModel(
@@ -467,30 +536,36 @@ class SongModel:
             
             # Get YouTube song cover art and save it in MP3 file
             await song.update_cover_art(
-                before_download_cover_art=before_download_cover_art, 
-                progress_logger_for_download_cover_art=progress_logger_for_download_cover_art, 
-                after_download_cover_art=after_download_cover_art, 
-                on_delete_cover_art=on_delete_cover_art
+                pre_download_cover_art=pre_download_cover_art, 
+                on_download_cover_art=on_download_cover_art, 
+                post_download_cover_art=post_download_cover_art, 
+                pre_delete_cover_art=pre_delete_cover_art,
+                post_delete_cover_art=post_delete_cover_art
             )
             
-            # Submit song to Shazam API for recognition and update song state accordingly
+            # Submit song to Shazam API for recognition 
+            # and update song state accordingly
             await song.shazam_song(
                 shazam_match_threshold=shazam_match_threshold, 
-                before_shazam_song=before_shazam_song, 
-                after_shazam_song=after_shazam_song
+                pre_shazam_song=pre_shazam_song, 
+                post_shazam_song=post_shazam_song
             )
             
             # Get Shazam song covert art and save it in MP3 file
             await song.update_cover_art(
-                before_download_cover_art=before_download_cover_art, 
-                progress_logger_for_download_cover_art=progress_logger_for_download_cover_art, 
-                after_download_cover_art=after_download_cover_art, 
-                on_delete_cover_art=on_delete_cover_art
+                pre_download_cover_art=pre_download_cover_art, 
+                on_download_cover_art=on_download_cover_art, 
+                post_download_cover_art=post_download_cover_art, 
+                pre_delete_cover_art=pre_delete_cover_art,
+                post_delete_cover_art=post_delete_cover_art
             )
             
             # Rename MP3 file according to gathered song informaton
             # If Shazam recogntion failed or is too bad, mark song as junk
-            song.fix_filename(mark_as_junk=(song.shazam_match_score or 0) < shazam_match_threshold)
+            song.fix_filename(
+                mark_as_junk= \
+                    (song.shazam_match_score or 0) < shazam_match_threshold
+            )
 
             # Return created song object
             return song
@@ -521,16 +596,26 @@ class SongModel:
         """
         
         # Check if song object is already initialized
-        self.is_already_initialized = getattr(self, "is_already_initialized", False)
+        self.is_already_initialized = getattr(
+            self, 
+            "is_already_initialized", 
+            False
+        )
         
         # Set song object attributes that depends on MP3 file only 
         self.path = Path(mp3_path)
         self.mp3 = mutagen.mp3.MP3(self.path)
         self.audio_length = self.mp3.info.length
-        self.duration = "{:0>8}".format(str(datetime.timedelta(seconds=round(self.audio_length))))
+        self.duration = "{:0>8}".format(
+            str(datetime.timedelta(seconds=round(self.audio_length)))
+        )
         self.filename = self.path.name
-        self.has_junk_filename = re.match(r"^.*\s\(JUNK\)\.mp3$", str(self.filename)) is not None
-        self.label_from_filename = self.path.name[:(-4, -11)[self.has_junk_filename]]
+        self.has_junk_filename = re.match(
+            r"^.*\s\(JUNK\)\.mp3$", 
+            str(self.filename)
+        ) is not None
+        self.label_from_filename = \
+            self.path.name[:(-4, -11)[self.has_junk_filename]]
         self.playlist = self.path.parent.name
 
         # Initialize song object attributes that will be computed later
@@ -540,38 +625,56 @@ class SongModel:
         self.should_be_shazamed = False
 
         # YouTube ID is required.
-        # Try to get it from constructor parameters first, then from current state, 
-        # then from ID3 tags, then from MP3 filename.
+        # Try to get it from constructor parameters first, 
+        # then from song state, 
+        # then from ID3 tags, 
+        # then from MP3 filename.
         # If not found, raise an error.
         try:
-            youtube_id_tag = self.mp3.tags["TXXX:YouTube ID"].text[0]
+            youtube_id_tag = \
+                self.mp3.tags["TXXX:YouTube ID"].text[0]
         except:
             youtube_id_tag = None
 
-        self.youtube_id = youtube_id or getattr(self, "youtube_id", None) or youtube_id_tag
+        self.youtube_id = youtube_id \
+            or getattr(self, "youtube_id", None) \
+            or youtube_id_tag
 
         if not self.youtube_id:
-            match = re.match(r"^.*\[(?P<youtube_id>[^\]]+)\]$", str(self.label_from_filename))
+            match = re.match(
+                r"^.*\[(?P<youtube_id>[^\]]+)\]$", 
+                str(self.label_from_filename)
+            )
 
             if match:
                 self.youtube_id = match.group("youtube_id")
             else:
-                raise SongModelException(f"Missing YouTube ID in MP3 filename \"{str(self.path)}\"")
+                raise SongModelException(
+                    f"Missing YouTube ID in MP3 filename \"{str(self.path)}\""
+                )
 
         # Extract song name from filename
         self.song_name_from_filename = self.label_from_filename
-        match = (re.match(r"^(?P<song_name>.*)\[(?P<youtube_id>[^\]]+)\]$", str(self.label_from_filename)))
+        match = re.match(
+            r"^(?P<song_name>.*)\[(?P<youtube_id>[^\]]+)\]$", 
+            str(self.label_from_filename)
+        )
 
-        if match and match.group("song_name") and match.group("youtube_id") == self.youtube_id:
+        if match and match.group("song_name") \
+            and match.group("youtube_id") == self.youtube_id:
+
             self.song_name_from_filename = (match.group("song_name")).strip()
 
-        # Set song artist and title.
-        # Try to get them from constructor parameters first or from current state.
-        # At initialization time, also try to get them from ID3 tags, then from MP3 filename.
+        # Retrieve and set song artist and title.
+        # Try to get them from constructor parameters first or from song state.
+        # At initialization time, also try to get them from ID3 tags, 
+        # then from MP3 filename.
         self.artist = artist or getattr(self, "artist", None)
         self.title = title or getattr(self, "title", None)
 
-        if not self.is_already_initialized and (not self.artist or not self.title):
+        if not self.is_already_initialized \
+            and (not self.artist or not self.title):
+
             try:
                 self.artist = self.artist or self.mp3.tags["TPE1"].text[0]
             except:
@@ -582,13 +685,19 @@ class SongModel:
             except:
                 pass
 
-            match = re.match(r"^(?P<artist>.*)\s-\s(?P<title>.*)\s\[[^\]]+\]$", str(self.label_from_filename))
+            match = re.match(
+                r"^(?P<artist>.*)\s-\s(?P<title>.*)\s\[[^\]]+\]$", 
+                str(self.label_from_filename)
+            )
 
             if match:
                 self.artist = self.artist or match.group("artist")
                 self.title = self.title or match.group("title")
             else:
-                match = re.match(r"^(?P<title>.*)\s\[[^\]]+\]$", str(self.label_from_filename))
+                match = re.match(
+                    r"^(?P<title>.*)\s\[[^\]]+\]$", 
+                    str(self.label_from_filename)
+                )
 
                 if match:
                     self.title = self.title or match.group("title")
@@ -599,67 +708,76 @@ class SongModel:
         if self.title:
             self.title = re.sub(r"\s+", " ", self.title.strip())
 
-        # Set covert art URL. 
-        # Try to get it from constructor parameters first or from current state.
+        # Retrieve and set covert art URL. 
+        # Try to get it from constructor parameters first or from song state.
         # At initialization time, also try to get it from ID3 tags.
-        self.cover_art_url = cover_art_url or getattr(self, "cover_art_url", None)
+        self.cover_art_url = \
+            cover_art_url or getattr(self, "cover_art_url", None)
 
         if not self.is_already_initialized and not self.cover_art_url:
             try:
-                self.cover_art_url = self.mp3.tags["TXXX:Cover art URL"].text[0]
+                self.cover_art_url = \
+                    self.mp3.tags["TXXX:Cover art URL"].text[0]
             except:
                 pass
             
-        # Set Shazam artist.
-        # Try to get it from constructor parameters first or from current state.
+        # Retrieve and set Shazam artist.
+        # Try to get it from constructor parameters first or from song state.
         # At initialization time, also try to get it from ID3 tags.
         self.shazam_artist = getattr(self, "shazam_artist", None)
 
         if not self.is_already_initialized and not self.shazam_artist:
             try:
-                self.shazam_artist = self.mp3.tags["TXXX:Shazam artist"].text[0]
+                self.shazam_artist = \
+                    self.mp3.tags["TXXX:Shazam artist"].text[0]
             except:
                 pass
             
-        # Set Shazam title.
-        # Try to get it from constructor parameters first or from current state.
+        # Retrieve and set Shazam title.
+        # Try to get it from constructor parameters first or from song state.
         # At initialization time, also try to get it from ID3 tags.
         self.shazam_title = getattr(self, "shazam_title", None)
 
         if not self.is_already_initialized and not self.shazam_title:
             try:
-                self.shazam_title = self.mp3.tags["TXXX:Shazam title"].text[0]
+                self.shazam_title = \
+                    self.mp3.tags["TXXX:Shazam title"].text[0]
             except:
                 pass
             
-        # Set Shazam cover art URL.
-        # Try to get it from constructor parameters first or from current state.
+        # Retrieve and set Shazam cover art URL.
+        # Try to get it from constructor parameters first or from song state.
         # At initialization time, also try to get it from ID3 tags.
         self.shazam_cover_art_url = getattr(self, "shazam_cover_art_url", None)
 
         if not self.is_already_initialized and not self.shazam_cover_art_url:
             try:
-                self.shazam_cover_art_url = self.mp3.tags["TXXX:Shazam cover art URL"].text[0]
+                self.shazam_cover_art_url = \
+                    self.mp3.tags["TXXX:Shazam cover art URL"].text[0]
             except:
                 pass
 
         # Set Shazam match level.
-        # Try to get it from constructor parameters first or from current state.
+        # Try to get it from constructor parameters first or from song state.
         # At initialization time, also try to get it from ID3 tags.
         if shazam_match_score == 0:
             self.shazam_match_score = 0
         else:
             self.shazam_match_score = getattr(self, "shazam_match_score", None)
 
-            if not self.is_already_initialized and self.shazam_match_score is None:
+            if not self.is_already_initialized \
+                and self.shazam_match_score is None:
+
                 try:
-                    self.shazam_match_score = int(self.mp3.tags["TXXX:Shazam match level"].text[0])
+                    self.shazam_match_score = \
+                        int(self.mp3.tags["TXXX:Shazam match level"].text[0])
                 except:
                     pass
             
         # Update MP3 file ID3 tags if required
-        # e.g. if song state is modified after initialization (deliberate recall of constructor)
-        # or if song MP3 file was just created and not yet tagged
+        # e.g. if song state is modified after initialization (deliberate 
+        # recall of constructor) or if song MP3 file was just created and 
+        # not yet tagged
         if self.is_already_initialized or youtube_id_tag is None:
             self.update_id3_tags()
 
@@ -668,11 +786,15 @@ class SongModel:
         title_label = SongModel.sanitize_string(self.title)
         title_label = title_label[:1].upper() + title_label[1:]
 
-        self.expected_filename = artist_label + ("", " - ")[bool(self.artist and self.title)] \
-            + title_label + ("", " ")[bool(self.artist or self.title)] + "[" + self.youtube_id + "].mp3"
+        self.expected_filename = \
+            artist_label + ("", " - ")[bool(self.artist and self.title)] \
+            + title_label + ("", " ")[bool(self.artist or self.title)] \
+            + "[" + self.youtube_id + "].mp3"
         
-        self.expected_junk_filename = artist_label + ("", " - ")[bool(self.artist and self.title)] \
-            + title_label + ("", " ")[bool(self.artist or self.title)] + "[" + self.youtube_id + "] (JUNK).mp3"
+        self.expected_junk_filename = \
+            artist_label + ("", " - ")[bool(self.artist and self.title)] \
+            + title_label + ("", " ")[bool(self.artist or self.title)] \
+            + "[" + self.youtube_id + "] (JUNK).mp3"
 
         # Check if MP3 file should be tagged
         if not self.artist or not self.title:
@@ -683,13 +805,17 @@ class SongModel:
             self.should_be_shazamed = True
 
         # Check if MP3 file should be renamed
-        if ((not self.has_junk_filename and self.filename != self.expected_filename) 
-                or (self.has_junk_filename and self.filename != self.expected_junk_filename)):
+        if (not self.has_junk_filename \
+                and self.filename != self.expected_filename) \
+            or (self.has_junk_filename \
+                and self.filename != self.expected_junk_filename):
+
             self.should_be_renamed = True
 
         # Check if MP3 file has a cover art
         try:
-            self.has_cover_art = self.mp3.tags["APIC:Cover art"].type == 3
+            self.has_cover_art = \
+                self.mp3.tags["APIC:Cover art"].type == 3
         except:
             self.has_cover_art = False
 
@@ -781,20 +907,22 @@ class SongModel:
 
     async def update_cover_art(
             self,
-            before_download_cover_art=None,
-            progress_logger_for_download_cover_art=None,
-            after_download_cover_art=None,
-            on_delete_cover_art=None
+            pre_download_cover_art=None,
+            on_download_cover_art=None,
+            post_download_cover_art=None,
+            pre_delete_cover_art=None,
+            post_delete_cover_art=None
         ) -> None:
         """
         Update or delete covert art of the Song MP3 file
         Raise an error if covert art download fails
 
         Args:
-            before_download_cover_art: Callback before downloading cover art
-            progress_logger_for_download_cover_art: Progress logger for cover art download
-            after_download_cover_art: Callback after downloading cover art
-            on_delete_cover_art: Callback when cover art is deleted
+            pre_download_cover_art: Callback before downloading cover art
+            on_download_cover_art: Progress bar for cover art download
+            post_download_cover_art: Callback after downloading cover art
+            pre_delete_cover_art: Callback before deleting cover art
+            post_delete_cover_art: Callback after deleting cover art
 
         Raises:
             SongModelError: If cover art download fails
@@ -802,16 +930,21 @@ class SongModel:
 
         # Check if cover art must be updated or deleted
         try:
-            self.has_cover_art = self.mp3.tags["APIC:Cover art"].type == 3
+            self.has_cover_art = \
+                self.mp3.tags["APIC:Cover art"].type == 3
 
             if not self.cover_art_url:
+
+                if pre_delete_cover_art is not None:
+                    await pre_delete_cover_art(self)
+            
                 self.mp3.tags.delall("APIC")
                 self.mp3.tags.delall("TXXX:Cover art URL")
                 self.mp3.save(v1=0, v2_version=3)
                 self.has_cover_art = False
 
-                if on_delete_cover_art is not None:
-                    await on_delete_cover_art(self)
+                if post_delete_cover_art is not None:
+                    await post_delete_cover_art(self)
 
                 return
         except:
@@ -824,7 +957,8 @@ class SongModel:
 
             if self.has_cover_art:
                 try:
-                    stored_cover_art_url = self.mp3.tags["TXXX:Cover art URL"].text[0]
+                    stored_cover_art_url = \
+                        self.mp3.tags["TXXX:Cover art URL"].text[0]
 
                     if self.cover_art_url == stored_cover_art_url:
                         should_cover_art_be_updated = False
@@ -834,37 +968,41 @@ class SongModel:
         # Update or remove cover art
         if should_cover_art_be_updated :
 
-            # Set up progress logger for cover art download
+            # Set up progress bar for cover art download
             progress_bar_callback = None
-            if progress_logger_for_download_cover_art is not None:
+            if on_download_cover_art is not None:
                 progress_bar_logger = SongModel.CoverArtDownloadProgressBar(
-                    progress_callback=progress_logger_for_download_cover_art.callback, 
-                    label=progress_logger_for_download_cover_art.label
+                    progress_callback=on_download_cover_art.callback, 
+                    label=on_download_cover_art.label
                 )
                 progress_bar_callback = progress_bar_logger.update
 
-            # Call before_download_cover_art hook if provided
-            if before_download_cover_art is not None:
+            # Call pre_download_cover_art hook if provided
+            if pre_download_cover_art is not None:
                 try:
-                    await before_download_cover_art(self)
+                    await pre_download_cover_art(self)
                 except Exception as exc:
-                    raise SongModelException(f"Hook \"before_download_cover_art\" failed") from exc
+                    raise SongModelException(
+                        f"Hook \"pre_download_cover_art\" failed"
+                    ) from exc
             
             # Download cover art
             with tempfile.TemporaryDirectory() as temporary_directory_pathname:
-                temporary_file_pathname = Path(temporary_directory_pathname) / "temp.jpg"
+                temp_file = Path(temporary_directory_pathname) / "temp.jpg"
 
                 try:
                     urllib.request.urlretrieve(
                         self.cover_art_url, 
-                        temporary_file_pathname, 
+                        temp_file, 
                         progress_bar_callback
                     )
                 except Exception as exc:
-                    raise SongModelException(f"Failed to download cover art") from exc
+                    raise SongModelException(
+                        f"Failed to download cover art"
+                    ) from exc
                 
                 try:
-                    with open(temporary_file_pathname, "rb") as f:
+                    with open(temp_file, "rb") as f:
                         self.mp3.tags.delall("APIC")
                         self.mp3.tags.add(APIC(
                             encoding=3,  # 3 is for utf-8
@@ -884,46 +1022,53 @@ class SongModel:
                             text=u"" + self.cover_art_url
                         ))
                 except Exception as exc:
-                    raise SongModelException(f"Failed to add cover art to MP3 file") from exc
+                    raise SongModelException(
+                        f"Failed to add cover art to MP3 file"
+                    ) from exc
                 
                 self.mp3.save(v1=0, v2_version=3)
 
             # Update covert art presence flag
             self.has_cover_art = True
 
-            # Call after_download_cover_art hook if provided
-            if after_download_cover_art is not None:
+            # Call post_download_cover_art hook if provided
+            if post_download_cover_art is not None:
                 try:
-                    await after_download_cover_art(self)
+                    await post_download_cover_art(self)
                 except Exception as exc:
-                    raise SongModelException(f"Hook \"after_download_cover_art\" failed") from exc
-                await after_download_cover_art(self)
+                    raise SongModelException(
+                        f"Hook \"post_download_cover_art\" failed"
+                    ) from exc
+                await post_download_cover_art(self)
 
 
     async def shazam_song(
             self,
             shazam_match_threshold=50,
-            before_shazam_song=None,
-            after_shazam_song=None
+            pre_shazam_song=None,
+            post_shazam_song=None
         ) -> None:
         """
-        Retrieve Song artist, title and cover art url from Shazam then compute matching rate
+        Retrieve Song artist, title and cover art url 
+        from Shazam then compute matching rate
 
         Args:
-            shazam_match_threshold: Shazam match threshold (default is 50)
-            before_shazam_song: Callback before shazaming song
-            after_shazam_song: Callback after shazaming song
+            shazam_match_threshold: Shazam match threshold (default: 50)
+            pre_shazam_song: Callback before shazaming song
+            post_shazam_song: Callback after shazaming song
 
         Raises:
             SongModelError: If Shazam API call fails
         """
         
-        # Call before_shazam_song hook if provided
-        if before_shazam_song is not None:
+        # Call pre_shazam_song hook if provided
+        if pre_shazam_song is not None:
             try:
-                await before_shazam_song(self)
+                await pre_shazam_song(self)
             except Exception as exc:
-                raise SongModelException(f"Hook \"before_shazam_song\" failed") from exc
+                raise SongModelException(
+                    f"Hook \"pre_shazam_song\" failed"
+                ) from exc
 
         # Submit song to Shazam API for recognition.
         try:
@@ -933,7 +1078,8 @@ class SongModel:
                 time.sleep(15 - diff_time)
 
             # Call Shazam API to recognize song and get metadata
-            shazam_meta = await self.shazam_client.recognize_song(str(self.path))
+            shazam_metadata = \
+                await self.shazam_client.recognize_song(str(self.path))
             SongModel.last_shazam_request_time = time.time()
         except:
             # If Shazam API call fails, wait for 35s before retry
@@ -944,29 +1090,51 @@ class SongModel:
             # Retry Shazam API call
             # If it fails again, raise an error
             try:
-                shazam_meta = await self.shazam_client.recognize_song(str(self.path))
+                shazam_metadata = \
+                    await self.shazam_client.recognize_song(str(self.path))
                 SongModel.last_shazam_request_time = time.time()
             except Exception as exc:
-                raise SongModelException(f"Shazam API seems out of service") from exc
+                raise SongModelException(
+                    f"Shazam API seems out of service"
+                ) from exc
             
-        # Update song state and related MP3 file according to Shazam metadata and 
-        # compare returned artist and title with current artist and title to compute 
-        # matching rate using "fuzzy" string matching based on levenshtein distance algorithm.
-        if "track" in shazam_meta:
+        # Update song state and related MP3 file according to Shazam metadata 
+        # and compare returned artist and title with current artist and title 
+        # to compute matching rate using "fuzzy" string matching based on 
+        # levenshtein distance algorithm.
+        if "track" in shazam_metadata:
             try:
-                title = shazam_meta["track"]["title"][:1].upper() + shazam_meta["track"]["title"][1:]
-                artist = shazam_meta["track"]["subtitle"][:1].upper() + shazam_meta["track"]["subtitle"][1:]
-                artist_match_score = fuzz.partial_token_sort_ratio(self.artist, artist, True)
-                title_match_score = fuzz.partial_token_sort_ratio(self.title, title, True)
+                title = \
+                    shazam_metadata["track"]["title"][:1].upper() \
+                    + shazam_metadata["track"]["title"][1:]
+                
+                artist = \
+                    shazam_metadata["track"]["subtitle"][:1].upper() \
+                    + shazam_metadata["track"]["subtitle"][1:]
+                
+                artist_match_score = \
+                    fuzz.partial_token_sort_ratio(self.artist, artist, True)
 
-                # If artist match score is too low, this probably means that the song's title grabbed
-                # from YouTube video contains the artist name. In this case, we need to check if the title
-                # match score is good enough to consider the song as recognized by Shazam.
+                title_match_score = \
+                    fuzz.partial_token_sort_ratio(self.title, title, True)
+
+                # If artist match score is too low, this probably means that 
+                # the song's title grabbed from YouTube video contains the 
+                # artist name. In this case, we need to check if the title
+                # match score is good enough to consider the song as  
+                # recognized by Shazam.
                 if artist_match_score < 2 * shazam_match_threshold / 3 \
                         and title_match_score >= shazam_match_threshold:
-                    match_score = fuzz.partial_token_sort_ratio(title, f"{artist} - {title}", True)
+                    
+                    match_score = \
+                        fuzz.partial_token_sort_ratio(
+                            title, 
+                            f"{artist} - {title}", 
+                            True
+                        )
                 else:
-                    match_score = int((artist_match_score + title_match_score * 2) / 3)
+                    match_score = \
+                        int((artist_match_score + title_match_score * 2) / 3)
 
                 # If match score is good enough, update and save all 
                 # related MP3 file metadata with artist, title and 
@@ -974,7 +1142,8 @@ class SongModel:
                 # Otherwise, only save Shazam-specific metadata.
                 if match_score >= shazam_match_threshold:
                     try:
-                        cover_art_url = shazam_meta["track"]["images"]["coverart"]
+                        cover_art_url = \
+                            shazam_metadata["track"]["images"]["coverart"]
                         self.update_state(
                             artist=artist,
                             title=title,
@@ -1003,39 +1172,49 @@ class SongModel:
                         shazam_match_score=match_score
                     )
             except Exception as exc:
-                raise SongModelException(f"Failed to update song from Shazam metadata") from exc
+                raise SongModelException(
+                    f"Failed to update song from Shazam metadata"
+                ) from exc
         else:
             self.update_state(shazam_match_score=0)
 
-        # Call after_shazam_song hook if provided
-        if after_shazam_song is not None:
+        # Call post_shazam_song hook if provided
+        if post_shazam_song is not None:
             try:
-                await after_shazam_song(self)
+                await post_shazam_song(self)
             except Exception as exc:
-                raise SongModelException(f"Hook \"after_shazam_song\" failed") from exc
+                raise SongModelException(
+                    f"Hook \"post_shazam_song\" failed"
+                ) from exc
 
 
     def fix_filename(self, mark_as_junk=None) -> None:
         """
-        Fix Song MP3 filename (rename the MP3 file)
+        Fix song MP3 filename (rename the MP3 file)
 
         Args:
-            mark_as_junk: Boolean indicating if the file should be marked as junk
-                (default is None, which means use the current state)
+            mark_as_junk: Boolean indicating if the file should be marked 
+                as junk (default: None, which means use the current state)
         """
 
         if not mark_as_junk == True and not mark_as_junk == False:
             mark_as_junk = self.has_junk_filename
 
         if self.should_be_tagged:
-            appropriate_filename = f"{self.song_name_from_filename} [{self.youtube_id}] (JUNK).mp3"
+            appropriate_filename = \
+                f"{self.song_name_from_filename} [{self.youtube_id}] (JUNK).mp3"
         else:
-            appropriate_filename = (self.expected_filename, self.expected_junk_filename)[mark_as_junk]
+            appropriate_filename = \
+                self.expected_junk_filename if mark_as_junk \
+                else self.expected_filename
 
         try:
-            self.path = self.path.rename(self.path.parent / appropriate_filename)
+            self.path = \
+                self.path.rename(self.path.parent / appropriate_filename)
         except Exception as exc:
-            raise SongModelException(f"Failed to rename song MP3 file") from exc
+            raise SongModelException(
+                f"Failed to rename song MP3 file"
+            ) from exc
         
         self.update_state()
 
@@ -1054,24 +1233,45 @@ class SongModel:
         Update song state and related MP3 file ID3 tags
 
         Args:
-            artist: Artist name (default is False)
-            title: Song title (default is False)
-            cover_art_url: Cover art URL (default is False)
-            shazam_artist: Shazam artist name (default is False)
-            shazam_title: Shazam title (default is False)
-            shazam_cover_art_url: Shazam cover art URL (default is False)
-            shazam_match_score: Shazam match score (default is -1)
+            artist: Artist name (default: False)
+            title: Song title (default: False)
+            cover_art_url: Cover art URL (default: False)
+            shazam_artist: Shazam artist name (default: False)
+            shazam_title: Shazam title (default: False)
+            shazam_cover_art_url: Shazam cover art URL (default: False)
+            shazam_match_score: Shazam match score (default: -1)
         """
 
         # Update song state according to provided parameters
         # If parameter is False or -1, keep current state
         self.artist = (self.artist, artist)[artist != False]
+
         self.title = (self.title, title)[title != False]
-        self.cover_art_url = (self.cover_art_url, cover_art_url)[cover_art_url != False]
-        self.shazam_artist = (self.shazam_artist, shazam_artist)[shazam_artist != False]
-        self.shazam_title = (self.shazam_title, shazam_title)[shazam_title != False]
-        self.shazam_cover_art_url = (self.shazam_cover_art_url, shazam_cover_art_url)[shazam_cover_art_url != False]
-        self.shazam_match_score = (self.shazam_match_score, shazam_match_score)[shazam_match_score != -1]
+
+        self.cover_art_url = \
+            (self.cover_art_url, cover_art_url)[
+                cover_art_url != False
+            ]
+        
+        self.shazam_artist = \
+            (self.shazam_artist, shazam_artist)[
+                shazam_artist != False
+            ]
+        
+        self.shazam_title = \
+            (self.shazam_title, shazam_title)[
+                shazam_title != False
+            ]
+        
+        self.shazam_cover_art_url = \
+            (self.shazam_cover_art_url, shazam_cover_art_url)[
+                shazam_cover_art_url != False
+            ]
+        
+        self.shazam_match_score = \
+            (self.shazam_match_score, shazam_match_score)[
+                shazam_match_score != -1
+            ]
 
         # Reinitialize song object according to new state
         self.__init__(self.path, self.youtube_id)
