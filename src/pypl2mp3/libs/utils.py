@@ -43,7 +43,7 @@ class LabelFormatter:
         """
         return (
             f"{Fore.WHITE}{Style.DIM}"
-            f"{label.ljust(self.width)} "
+            f"{label.ljust(self.width)}"
             f"{Style.RESET_ALL}"
         )
     
