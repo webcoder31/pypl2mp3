@@ -13,12 +13,14 @@ Repository: https://github.com/webcoder31/pypl2mp3
 
 
 # Python core modules
+from dataclasses import dataclass
 import datetime
 from pathlib import Path
 import re
 import tempfile
 import time
 from types import SimpleNamespace
+from typing import Callable
 import urllib.request
 
 # Third party packages
@@ -47,6 +49,16 @@ class SongModelException(AppBaseException):
     pass
 
 
+@dataclass
+class ProgressBarInterface:
+    """
+    Interface to be used to provide custom progress bar leveraged during 
+    song import (see SongModel.create_from_youtube() method)
+    """
+    label: str = ""
+    callback: Callable | None = None
+
+
 class SongModel:
     """
     Song model class representing a song object
@@ -57,7 +69,7 @@ class SongModel:
     class TerminalProgressBar():
         """
         Inner base class providing a method in charge 
-        of printing progress bar in terminal
+        of printing a progress bar in the terminal
         """
 
         def __init__(self, progress_callback=None, label=""):
@@ -65,8 +77,13 @@ class SongModel:
             Construct a TerminalProgressBar
 
             Args:
-                progress_callback: Callback function to update progress bar
-                label: Label to display on the progress bar
+                progress_callback: Callback function in charge of displaying 
+                    the progress bar. On progress changes, it will be called 
+                    with two arguments:
+                        - The cnew completion percentage
+                        - The label provided here (see bellow)
+                    See display_progress_bar() function as an example.
+                label: Label that prepend the progress bar
             """
 
             self.label_formatter = LabelFormatter(min(33, len(label)))
@@ -78,63 +95,92 @@ class SongModel:
                 self.label_base = self.label_base[:-1]
                 self.label_suffix = ":"
 
-            self.previous_percentage = 0
-            self.progress_callback = self.default_progress_callback
+            self.progress_value = 0
 
+            # Set the callback in charge of displaying the progress bar
+            # If none provided use the default one
             if progress_callback:
                 self.progress_callback = progress_callback
+            else:
+                self.progress_callback = self.display_progress_bar
 
-        def default_progress_callback(self, percentage, label="") -> None:
+        def display_progress_bar(self, 
+                progress_value: int, 
+                label: str = ""
+            ) -> None:
             """
-            Default progress callback
+            Default callback in charge of displaying the progress bar
 
             Args:
-                percentage: Percentage of completion
+                progress_value: Percentage of completion
                 label: Label to display on the progress bar
             """
 
-            progress_bar = (
-                f"{Fore.LIGHTRED_EX}{('■' * int(percentage / 2))}"
-                f"{('□' * (50 - int(percentage / 2)))}{Fore.RESET}"
+            progress_bar = (f"{Fore.LIGHTRED_EX}"
+                + f"{('■' * int(progress_value / 2))}"
+                + f"{('□' * (50 - int(progress_value / 2)))}"
+                + f"{Fore.RESET}"
             )
 
-            print(("", "\x1b[K")[percentage < 100], end="\r")
-            print((f"{self.label_formatter.format(label)}{progress_bar}" 
-                  + f" {Style.DIM}{int(percentage)}%").strip() 
-                  + f" {Style.RESET_ALL}",
-                end=("\n", "")[percentage < 100],
+            print(("", "\x1b[K")[progress_value < 100], end="\r")
+            print((f"{self.label_formatter.format(label)}" 
+                + f"{progress_bar}"
+                + f" {Style.DIM}{int(progress_value)}%").strip()
+                + f" {Style.RESET_ALL}",
+                end=("\n", "")[progress_value < 100],
                 flush=True
             )
 
-        def update_progress_bar(self, percentage) -> None:
+        def update_progress_bar(self, new_value) -> None:
+            """
+            Update progress bar current value and invoke the callback defined
+            to update the display
+
+            Note: This method should be used by TerminalProgressBar subclasses
+            to update the progress bar. It must not be overriden by subclasses.
+
+            Args:
+                progress_value: Percentage of completion
+            """
+
+            new_value = int(new_value)
+
+            if new_value != self.progress_value:
+
+                if new_value - self.progress_value > 10:
+                    # If progress_value is too high, update progress bar 
+                    # by small steps to avoid flickering
+                    for value in range(self.progress_value, new_value + 1):
+                        # Update the display of the progress bar
+                        self.progress_callback(
+                            max(0, min(100, value)), 
+                            label=self.label
+                        )
+                        time.sleep(0.01)
+                else:
+                    self.progress_callback(new_value, label=self.label)
+
+            self.progress_value = new_value
+
+        def update(self, new_value) -> None:
             """
             Update progress bar
 
+            Note: This method should be used by TerminalProgressBar class 
+            direct instances to update the progress bar.
+
+            It may be overriden by TerminalProgressBar subclasses to
+            provide their own implementation who finally have to call
+            the update_progress_bar() method to actually update the 
+            progress bar.
+
             Args:
-                percentage: Percentage of completion
+                new_value: New percentage of completion
             """
-
-            percentage = int(percentage)
-
-            if percentage != self.previous_percentage:
-
-                if percentage - self.previous_percentage > 10:
-                    # If percentage is too high, update progress bar 
-                    # by small steps to avoid flickering
-                    for x in range(percentage - self.previous_percentage):
-                        cur_percentage = max(
-                            0, 
-                            min(100, self.previous_percentage + x + 1)
-                        )
-                        self.progress_callback(cur_percentage, label=self.label)
-                        time.sleep(0.01)
-                else:
-                    self.progress_callback(percentage, label=self.label)
-
-            self.previous_percentage = percentage
+            self.update_progress_bar(new_value)
 
 
-    class AudioStreamDownloadProgressBar(TerminalProgressBar):
+    class AudioDownloadProgressBar(TerminalProgressBar):
         """
         Inner class to display audio stream download progress bar
         """
@@ -152,12 +198,14 @@ class SongModel:
             self.label = \
                 f"{self.label_base} ({stream.filesize_mb} Mb)" \
                 + f"{self.label_suffix}"
+            
             bytes_remaining = \
                 max(0, bytes_remaining)  # avoid negative values
-            percentage = \
+            
+            new_value = \
                 ((stream.filesize - bytes_remaining) / stream.filesize) * 100
 
-            self.update_progress_bar(percentage)
+            self.update_progress_bar(new_value)
 
 
     class CoverArtDownloadProgressBar(TerminalProgressBar):
@@ -165,7 +213,7 @@ class SongModel:
         Inner class to display cover art download progress bar
         """
         
-        def update(self, count, block_size, total_size) -> None:
+        def update(self, block_number, block_size, total_size) -> None:
             """
             Update progress bar
 
@@ -178,10 +226,11 @@ class SongModel:
             self.label = \
                 f"{self.label_base} ({int(total_size / 1024)} Kb)" \
                     + f"{self.label_suffix}"
-            percentage = \
-                min([int(count * block_size * 100 / total_size), 100])
+            
+            new_value = \
+                min([int(block_number * block_size * 100 / total_size), 100])
 
-            self.update_progress_bar(percentage)
+            self.update_progress_bar(new_value)
 
 
     class Mp3EncodingProgressBar(ProgressBarLogger):
@@ -208,7 +257,12 @@ class SongModel:
                 label=label
             )
 
-        def bars_callback(self, bar, attr, value, previous_value=None) -> None:
+        def bars_callback(self, 
+                bar, 
+                attr, 
+                new_progress_value, 
+                old_progress_value=None
+            ) -> None:
             """
             Implementation of ProgressBarLogger class abstract method
             to update progress bar
@@ -216,13 +270,14 @@ class SongModel:
             Args:
                 bar: Bar name
                 attr: Attribute name
-                value: Current value
-                previous_value: Previous value
+                new_progress_value: Current value
+                old_progress_value: Previous value
             """
 
-            if previous_value is not None:
-                percentage = int((value / self.bars[bar]["total"]) * 100)
-                self.progress_bar.update_progress_bar(percentage)
+            if old_progress_value is not None:
+                new_value = \
+                    int((new_progress_value / self.bars[bar]["total"]) * 100)
+                self.progress_bar.update_progress_bar(new_value)
 
 
     @staticmethod
@@ -290,13 +345,13 @@ class SongModel:
             pre_fetch_video_info: Callback before fetching video information
             post_fetch_video_info: Callback after fetching video information
             pre_download_audio: Callback before downloading audio
-            on_download_audio: Progress logger for audio download
+            on_download_audio: Progress logger to track audio download
             post_download_audio: Callback after downloading audio
             pre_mp3_encode: Callback before encoding to MP3
-            on_mp3_encode: Progress logger for MP3 encoding
+            on_mp3_encode: Progress logger to track MP3 encoding
             post_mp3_encode: Callback after encoding to MP3
             pre_download_cover_art: Callback before downloading cover art
-            on_download_cover_art: Progress logger for cover art download
+            on_download_cover_art: Progress logger to track cover art download
             post_download_cover_art: Callback after downloading cover art
             pre_delete_cover_art: Callback before deleting cover art
             post_delete_cover_art: Callback after deleting cover art
@@ -334,53 +389,61 @@ class SongModel:
             label_formatter = LabelFormatter(33)
             
             async def pre_fetch_video_info(youtube_id):
-                print(label_formatter.format("Fetching video information:") 
-                    + f"Please, wait... ", end="", flush=True)
+                print(
+                    label_formatter.format("Fetching video information:") 
+                    + f"Please, wait... ", 
+                    end="", 
+                    flush=True
+                )
 
-            async def post_fetch_video_info(video_props):
+            async def post_fetch_video_info(video_info):
                 print("\x1b[K", end="\r")
-                print(label_formatter.format("Fetching video information:") 
-                    + f"Ready to import video \"{video_props.youtube_id}\"")
+                print(
+                    label_formatter.format("Fetching video information:") 
+                    + f"Ready to import video \"{video_info.youtube_id}\""
+                )
 
-            async def pre_download_audio(video_props, m4aPath):
+            async def pre_download_audio(video_info, m4aPath):
                 pass
     
-            on_download_audio = SimpleNamespace(
+            on_download_audio = ProgressBarInterface(
                 label="Streaming audio: ",
                 callback=None
             )
     
-            async def post_download_audio(video_props, m4aPath):
+            async def post_download_audio(video_info, m4aPath):
                 pass
     
-            async def pre_mp3_encode(video_props, m4aPath, mp3_path):
+            async def pre_mp3_encode(video_info, m4aPath, mp3_path):
                 pass
     
-            on_mp3_encode = SimpleNamespace(
+            on_mp3_encode = ProgressBarInterface(
                 label="Encoding audio stream to MP3: ",
                 callback=None
             )
     
-            async def post_mp3_encode(video_props, m4aPath, mp3_path):
+            async def post_mp3_encode(video_info, m4aPath, mp3_path):
                 pass
     
             async def pre_download_cover_art(song):
                 pass
     
-            on_download_cover_art = SimpleNamespace(
+            on_download_cover_art = ProgressBarInterface(
                 label="Downloading cover art: ",
                 callback=None
             )
     
             async def post_download_cover_art(song):
                 pass
+
+            async def pre_delete_cover_art(song):
+                pass
     
             async def post_delete_cover_art(song):
                 pass
     
             async def pre_shazam_song(song):
-                print(
-                    label_formatter.format("Shazaming audio track:") 
+                print(label_formatter.format("Shazaming audio track:") 
                     + f"Please, wait... ", 
                     end="", 
                     flush=True
@@ -389,7 +452,7 @@ class SongModel:
             async def post_shazam_song(song):
                 print("\x1b[K", end="\r")
                 print(
-                    label_formatter.format("Shazam match result:") 
+                    label_formatter.format("Song recognition result:") 
                     + f"Artist: {Fore.LIGHTCYAN_EX}" 
                     + f"{song.shazam_artist}{Fore.RESET}, " 
                     + f"Title: {Fore.LIGHTCYAN_EX}" 
@@ -427,11 +490,13 @@ class SongModel:
 
             # Set up progress bar for audio download
             if on_download_audio is not None:
-                mp3_encode_logger = SongModel.AudioStreamDownloadProgressBar(
+                audio_download_logger = SongModel.AudioDownloadProgressBar(
                     progress_callback=on_download_audio.callback, 
                     label=on_download_audio.label
                 )
-                video.register_on_progress_callback(mp3_encode_logger.update)
+                video.register_on_progress_callback(
+                    audio_download_logger.update
+                )
 
             # Call pre_download_audio hook if provided
             if pre_download_audio is not None:
@@ -1231,6 +1296,8 @@ class SongModel:
         ) -> None:
         """
         Update song state and related MP3 file ID3 tags
+
+        If a parameter is False or -1, keep its current state
 
         Args:
             artist: Artist name (default: False)

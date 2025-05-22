@@ -26,7 +26,7 @@ from pytubefix import Playlist, YouTube
 from pypl2mp3.libs.exceptions import AppBaseException
 from pypl2mp3.libs.logger import logger
 from pypl2mp3.libs.repository import get_repository_playlist
-from pypl2mp3.libs.song import SongModel
+from pypl2mp3.libs.song import SongModel, ProgressBarInterface
 from pypl2mp3.libs.utils import (
     LabelFormatter,
     CountFormatter,
@@ -199,7 +199,7 @@ class ImportReport:
             print(f"  Issue:      {Fore.RED}{song.issue}")
 
 
-def _create_progress_callback(label_formatter: LabelFormatter) -> Callable:
+def _create_progress_bar_callback(label_formatter: LabelFormatter) -> Callable:
     """
     Creates a progress bar callback function.
     
@@ -210,7 +210,7 @@ def _create_progress_callback(label_formatter: LabelFormatter) -> Callable:
         Callback function for progress updates
     """
 
-    def progress_callback(percentage: float, label: str = "") -> None:
+    def progress_bar_callback(percentage: float, label: str = "") -> None:
         """
         Callback function to update the progress bar.
         """
@@ -231,7 +231,7 @@ def _create_progress_callback(label_formatter: LabelFormatter) -> Callable:
             flush=True
         )
     
-    return progress_callback
+    return progress_bar_callback
 
 
 async def _import_song(
@@ -256,8 +256,6 @@ async def _import_song(
     Raises:
         ImportPlaylistError: If song creation fails
     """
-
-    progress_callback = _create_progress_callback(label_formatter)
     
     async def pre_fetch_video_info(youtube_id):
         label = label_formatter.format("Fetching video information:")
@@ -282,6 +280,10 @@ async def _import_song(
             + f"Match: {Fore.LIGHTCYAN_EX}{song.shazam_match_score}%"
         )
 
+    # Create a custom callback for prgress bar update rendering
+    progress_bar_callback = _create_progress_bar_callback(label_formatter)
+
+    # Create a SongModel instance from a YouTube video
     song = await SongModel.create_from_youtube(
         video.video_id,
         playlist_path,
@@ -290,17 +292,17 @@ async def _import_song(
         use_default_verbosity=False,
         pre_fetch_video_info=pre_fetch_video_info,
         post_fetch_video_info=post_fetch_video_info,
-        on_download_audio=SimpleNamespace(
+        on_download_audio=ProgressBarInterface(
             label="Streaming audio:",
-            callback=progress_callback
+            callback=progress_bar_callback
         ),
-        on_mp3_encode=SimpleNamespace(
+        on_mp3_encode=ProgressBarInterface(
             label="Encoding audio stream to MP3:",
-            callback=progress_callback
+            callback=progress_bar_callback
         ),
-        on_download_cover_art=SimpleNamespace(
+        on_download_cover_art=ProgressBarInterface(
             label="Downloading cover art:",
-            callback=progress_callback
+            callback=progress_bar_callback
         ),
         pre_shazam_song=pre_shazam,
         post_shazam_song=post_shazam
@@ -418,7 +420,7 @@ async def import_playlist(args) -> None:
 
     # Initialize progress tracking
     count_formatter = CountFormatter(new_song_count)
-    label_formatter = LabelFormatter(28 + count_formatter.width)
+    label_formatter = LabelFormatter(29 + count_formatter.width)
     padding = label_formatter.width - count_formatter.width
     report = ImportReport()
     
@@ -465,8 +467,8 @@ async def import_playlist(args) -> None:
             print(
                 f"{line_break}{counter}{Fore.WHITE}" 
                 + f" ⇨ Match too low ({match_score:.1f}%)".ljust(padding, " ")
-                + f" {Fore.RESET}{Fore.GREEN}{song_name}{Fore.RESET}" 
-                + f" {Fore.BLUE}{Style.DIM}[{video.video_id}]"
+                + f"{Fore.RESET}{Fore.GREEN}{song_name}{Fore.RESET} " 
+                + f"{Fore.BLUE}{Style.DIM}[{video.video_id}]"
             )
 
             # Disable line break for consecutive 
@@ -484,8 +486,8 @@ async def import_playlist(args) -> None:
         print(
             f"\n{counter}{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}" 
             + " ⇨ New video to import  ==>".ljust(padding, " ") 
-            + f" {Fore.LIGHTGREEN_EX}{song_name}{Fore.RESET}" 
-            + f" {Fore.YELLOW}{Style.DIM}[https://youtu.be/{video.video_id}]"
+            + f"{Fore.LIGHTGREEN_EX}{song_name}{Fore.RESET} " 
+            + f"{Fore.YELLOW}{Style.DIM}[https://youtu.be/{video.video_id}]"
         )
         
         # Prompt user to add new song to playlist
