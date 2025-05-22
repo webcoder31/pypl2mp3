@@ -55,7 +55,7 @@ class SongReport:
     detail: Optional[str] = None
     reason: Optional[str] = None
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str):
         """
         Implement dictionary-like access to report attributes.
         By the way, this make it subscriptable to be used as a list item.
@@ -612,7 +612,7 @@ class JunkSongTagger:
                 )
 
 
-async def fix_junks(args) -> None:
+async def fix_junks(args: any) -> None:
     """
     Main entry point for junk song fixing process.
 

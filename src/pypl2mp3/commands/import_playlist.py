@@ -60,7 +60,7 @@ class SongReport:
     reason: Optional[str] = None
     issue: Optional[str] = None
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str):
         """
         Implement dictionary-like access to report attributes.
         By the way, this make it subscriptable to be used as a list item.
@@ -257,20 +257,20 @@ async def _import_song(
         ImportPlaylistError: If song creation fails
     """
     
-    async def pre_fetch_video_info(youtube_id):
+    async def pre_fetch_video_info(youtube_id: str):
         label = label_formatter.format("Fetching video information:")
         print(f"{label}Please, wait... ", end="", flush=True)
         
-    async def post_fetch_video_info(props):
+    async def post_fetch_video_info(video_info: SimpleNamespace):
         label = label_formatter.format("Fetching video information:")
         print("\x1b[K", end="\r")
         print(f"{label}Ready to import video")
 
-    async def pre_shazam(song):
+    async def pre_shazam(song: SongModel):
         label = label_formatter.format("Shazam-ing audio track:")
         print(f"{label}Please, wait... ", end="", flush=True)
         
-    async def post_shazam(song):
+    async def post_shazam(song: SongModel):
         label = label_formatter.format("Shazam-ing audio track:")
         print("\x1b[K", end="\r")
         print(
@@ -311,7 +311,7 @@ async def _import_song(
     return song
 
 
-async def import_playlist(args) -> None:
+async def import_playlist(args: any) -> None:
     """
     Import or sync a YouTube playlist to local MP3 files.
     

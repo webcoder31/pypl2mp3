@@ -94,7 +94,7 @@ class Logger:
             self._add_file_handler()
 
 
-    def _get_short_tracebacks(self, exc_info) -> list[str]:
+    def _get_short_tracebacks(self, exc_info: any) -> list[str]:
         """
         Return the chain of exceptions into a list of strings,
         each with type and error message.

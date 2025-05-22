@@ -72,7 +72,10 @@ class SongModel:
         of printing a progress bar in the terminal
         """
 
-        def __init__(self, progress_callback=None, label=""):
+        def __init__(self, 
+                progress_callback: Callable = None, 
+                label: str = ""
+            ):
             """
             Construct a TerminalProgressBar
 
@@ -131,7 +134,7 @@ class SongModel:
                 flush=True
             )
 
-        def update_progress_bar(self, new_value) -> None:
+        def update_progress_bar(self, new_value: float) -> None:
             """
             Update progress bar current value and invoke the callback defined
             to update the display
@@ -162,7 +165,7 @@ class SongModel:
 
             self.progress_value = new_value
 
-        def update(self, new_value) -> None:
+        def update(self, new_value: float) -> None:
             """
             Update progress bar
 
@@ -185,7 +188,11 @@ class SongModel:
         Inner class to display audio stream download progress bar
         """
 
-        def update(self, stream, chunk, bytes_remaining) -> None:
+        def update(self, 
+                stream: any, 
+                chunk: bytes, 
+                bytes_remaining: int
+            ) -> None:
             """
             Update progress bar
 
@@ -213,7 +220,11 @@ class SongModel:
         Inner class to display cover art download progress bar
         """
         
-        def update(self, block_number, block_size, total_size) -> None:
+        def update(self, 
+                block_number: int, 
+                block_size: int, 
+                total_size: int
+            ) -> None:
             """
             Update progress bar
 
@@ -240,7 +251,11 @@ class SongModel:
         MP3 encoding progress
         """
 
-        def __init__(self, progress_callback=None, label="", **kwargs):
+        def __init__(self, 
+                progress_callback: Callable | None = None, 
+                label: str = "", 
+                **kwargs
+            ):
             """
             Construct a Mp3EncodingProgressBar
 
@@ -258,10 +273,10 @@ class SongModel:
             )
 
         def bars_callback(self, 
-                bar, 
-                attr, 
-                new_progress_value, 
-                old_progress_value=None
+                bar: str, 
+                attr: str, 
+                new_progress_value: float, 
+                old_progress_value: float | None = None
             ) -> None:
             """
             Implementation of ProgressBarLogger class abstract method
@@ -281,7 +296,7 @@ class SongModel:
 
 
     @staticmethod
-    def sanitize_string(string) -> str: 
+    def sanitize_string(string: str) -> str: 
         """
         Sanitize a string (static method)
 
@@ -312,26 +327,26 @@ class SongModel:
 
     @staticmethod
     async def create_from_youtube(
-            youtube_id,
-            dest_folder_path, 
-            shazam_match_threshold=50, 
-            verbose=True, 
-            use_default_verbosity=True,
-            pre_fetch_video_info=None, 
-            post_fetch_video_info=None,
-            pre_download_audio=None, 
-            on_download_audio=None, 
-            post_download_audio=None,
-            pre_mp3_encode=None, 
-            on_mp3_encode=None, 
-            post_mp3_encode=None,
-            pre_download_cover_art=None, 
-            on_download_cover_art=None, 
-            post_download_cover_art=None, 
-            pre_delete_cover_art=None,
-            post_delete_cover_art=None,
-            pre_shazam_song=None, 
-            post_shazam_song=None
+            youtube_id: str,
+            dest_folder_path: str, 
+            shazam_match_threshold: int = 50, 
+            verbose: bool = True, 
+            use_default_verbosity: bool = True,
+            pre_fetch_video_info: Callable | None = None, 
+            post_fetch_video_info: Callable | None = None,
+            pre_download_audio: Callable | None = None,
+            on_download_audio: ProgressBarInterface | None = None,
+            post_download_audio: Callable | None = None,
+            pre_mp3_encode: Callable | None = None,
+            on_mp3_encode: ProgressBarInterface | None = None,
+            post_mp3_encode: Callable | None = None,
+            pre_download_cover_art: Callable | None = None,
+            on_download_cover_art: ProgressBarInterface | None = None,
+            post_download_cover_art: Callable | None = None,
+            pre_delete_cover_art: Callable | None = None,
+            post_delete_cover_art: Callable | None = None,
+            pre_shazam_song: Callable | None = None,
+            post_shazam_song: Callable | None = None
         ) -> "SongModel":
         """
         Create a Song instance from YouTube (static method)
@@ -388,7 +403,7 @@ class SongModel:
 
             label_formatter = LabelFormatter(33)
             
-            async def pre_fetch_video_info(youtube_id):
+            async def pre_fetch_video_info(youtube_id: str) -> None:
                 print(
                     label_formatter.format("Fetching video information:") 
                     + f"Please, wait... ", 
@@ -396,14 +411,19 @@ class SongModel:
                     flush=True
                 )
 
-            async def post_fetch_video_info(video_info):
+            async def post_fetch_video_info(
+                    video_info: SimpleNamespace
+                ) -> None:
                 print("\x1b[K", end="\r")
                 print(
                     label_formatter.format("Fetching video information:") 
                     + f"Ready to import video \"{video_info.youtube_id}\""
                 )
 
-            async def pre_download_audio(video_info, m4aPath):
+            async def pre_download_audio(
+                    video_info: SimpleNamespace, 
+                    m4aPath: str
+                ) -> None:
                 pass
     
             on_download_audio = ProgressBarInterface(
@@ -411,10 +431,17 @@ class SongModel:
                 callback=None
             )
     
-            async def post_download_audio(video_info, m4aPath):
+            async def post_download_audio(
+                    video_info: SimpleNamespace, 
+                    m4aPath: str
+                ) -> None:
                 pass
     
-            async def pre_mp3_encode(video_info, m4aPath, mp3_path):
+            async def pre_mp3_encode(
+                    video_info: SimpleNamespace, 
+                    m4aPath: str, 
+                    mp3_path: str
+                ) -> None:
                 pass
     
             on_mp3_encode = ProgressBarInterface(
@@ -422,7 +449,11 @@ class SongModel:
                 callback=None
             )
     
-            async def post_mp3_encode(video_info, m4aPath, mp3_path):
+            async def post_mp3_encode(
+                    video_info: SimpleNamespace, 
+                    m4aPath: str, 
+                    mp3_path: str
+                ) -> None:
                 pass
     
             async def pre_download_cover_art(song):
@@ -636,14 +667,13 @@ class SongModel:
             return song
     
 
-    def __init__(
-            self, 
-            mp3_path, 
-            youtube_id=None, 
-            artist=None, 
-            title=None, 
-            cover_art_url=None, 
-            shazam_match_score=None
+    def __init__(self, 
+            mp3_path: str, 
+            youtube_id: str | None = None, 
+            artist: str | None = None, 
+            title: str | None = None, 
+            cover_art_url: str | None = None, 
+            shazam_match_score: float | None = None
         ) -> None:
         """
         Construct a song model instance from a MP3 file
@@ -970,13 +1000,12 @@ class SongModel:
         self.mp3.save(v1=0, v2_version=3)
 
 
-    async def update_cover_art(
-            self,
-            pre_download_cover_art=None,
-            on_download_cover_art=None,
-            post_download_cover_art=None,
-            pre_delete_cover_art=None,
-            post_delete_cover_art=None
+    async def update_cover_art(self,
+            pre_download_cover_art: Callable | None = None,
+            on_download_cover_art: ProgressBarInterface | None = None,
+            post_download_cover_art: Callable | None = None,
+            pre_delete_cover_art: Callable | None = None,
+            post_delete_cover_art: Callable | None = None
         ) -> None:
         """
         Update or delete covert art of the Song MP3 file
@@ -1107,11 +1136,10 @@ class SongModel:
                 await post_download_cover_art(self)
 
 
-    async def shazam_song(
-            self,
-            shazam_match_threshold=50,
-            pre_shazam_song=None,
-            post_shazam_song=None
+    async def shazam_song(self,
+            shazam_match_threshold: int = 50,
+            pre_shazam_song: Callable | None = None,
+            post_shazam_song: Callable | None = None
         ) -> None:
         """
         Retrieve Song artist, title and cover art url 
@@ -1253,7 +1281,7 @@ class SongModel:
                 ) from exc
 
 
-    def fix_filename(self, mark_as_junk=None) -> None:
+    def fix_filename(self, mark_as_junk: bool | None = None) -> None:
         """
         Fix song MP3 filename (rename the MP3 file)
 
@@ -1284,15 +1312,14 @@ class SongModel:
         self.update_state()
 
 
-    def update_state(
-            self,
-            artist=False,
-            title=False,
-            cover_art_url=False,
-            shazam_artist=False,
-            shazam_title=False,
-            shazam_cover_art_url=False,
-            shazam_match_score=-1
+    def update_state(self,
+            artist: str | None | bool = False,
+            title: str | None | bool = False,
+            cover_art_url: str | None | bool = False,
+            shazam_artist: str | None | bool = False,
+            shazam_title: str | None | bool = False,
+            shazam_cover_art_url: str | None | bool = False,
+            shazam_match_score: float | None | int = -1
         ) -> None:
         """
         Update song state and related MP3 file ID3 tags

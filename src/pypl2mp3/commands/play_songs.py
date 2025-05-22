@@ -284,7 +284,7 @@ def _display_controls() -> None:
     print()
 
 
-def play_songs(args) -> None:
+def play_songs(args: any) -> None:
     """
     Main entry point for the song player.
 
