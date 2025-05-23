@@ -648,6 +648,10 @@ def main():
     selected_playlist = "All"
     if "playlist" in args and args.playlist != None:
         selected_playlist = args.playlist
+        if isinstance(selected_playlist, list):
+            # Normalize "playlist" argument if necessary
+            # (provided as a list when non-optional for "import" command)
+            selected_playlist = selected_playlist[0]
     current_command += f", Playlist = \"{selected_playlist}\""
     print(f"{Fore.WHITE}{Style.DIM}⇨ Playlist .............. {Style.NORMAL}"
         + f"{Fore.LIGHTBLUE_EX}{selected_playlist}"
