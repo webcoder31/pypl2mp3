@@ -58,7 +58,7 @@ PYPL2MP3 requires:
 
 ### Dependency Manager
 
-- [Poetry](https://python-poetry.org/docs/) is required to manage dependencies 
+- [UV](https://docs.astral.sh/uv/) is required to manage dependencies 
   and run the program in its own virtual env.
 
 ### Audio Tools
@@ -78,7 +78,7 @@ PYPL2MP3 requires:
 ## Installation
 
 ```sh
-poetry install
+uv sync
 ```
 
 ---
@@ -109,7 +109,7 @@ To persist settings, add these to your `.bashrc` or `.zshrc` file.
 
 From the project root, run:
 ```sh
-poetry run pypl2mp3 <command> [options]
+uv run pypl2mp3 <command> [options]
 ```
 
 Or use the shell wrapper from any directory:
@@ -318,10 +318,12 @@ pypl2mp3 play -l 2 -s "dire straits"
 
 ## Troubleshooting
 
-Issues during import or tagging may be due to recent YouTube changes. 
-Try updating `pytubefix`:
+Recent changes to the YouTube API may prevent songs from being uploaded or 
+tagged. You can try updating `pytubefix` to its latest minor version as a 
+temporary workaround while you wait for a fix (also, feel free to file an 
+issue):
 ```sh
-poetry add pytubefix@latest
+uv lock --upgrade-package pytubefix
 ```
 
 ---
@@ -330,6 +332,6 @@ poetry add pytubefix@latest
 
 PYPL2MP3 relies primarily on [`pytubefix`](https://github.com/JuanBindez/pytubefix) 
 and [`shazamio`](https://github.com/shazamio/ShazamIO) under the hood to provide 
-its core features. These packages work perfectly and are well maintained. They 
+its core features. These packages work fine and are well maintained. They 
 also require a lot of effort to sync with the services they provide access to. 
 So, if you like PYPL2MP3, please give them a&nbsp;★ on GitHub.

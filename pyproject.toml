@@ -1,31 +1,37 @@
-[tool.poetry]
+[project]
 name = "pypl2mp3"
 version = "0.1.0"
 description = "YouTube playlist MP3 converter"
-authors = ["Thierry Thiers <webcoder31@gmail.com>"]
-license = "CeCILL-C"
+authors = [{ name = "Thierry Thiers", email = "webcoder31@gmail.com" }]
+requires-python = "~=3.11"
 readme = "README.md"
-packages = [
-  { include = "pypl2mp3", from = "src" },
+license = "CeCILL-C"
+dependencies = [
+    "mutagen>=1.47.0,<2",
+    "pygame>=2.6.0,<3",
+    "colorama>=0.4.6,<0.5",
+    "moviepy>=1.0.3,<2",
+    "proglog>=0.1.10,<0.2",
+    "shazamio>=0.4.0,<0.5",
+    "python-slugify>=8.0.4,<9",
+    "sshkeyboard>=2.3.1,<3",
+    "thefuzz>=0.22.1,<0.23",
+    "pytubefix>=8.13.1,<9",
+    "rich-argparse>=1.6.0,<2",
 ]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-mutagen = "^1.47.0"
-pygame = "^2.6.0"
-colorama = "^0.4.6"
-moviepy = "^1.0.3"
-proglog = "^0.1.10"
-shazamio = "^0.4.0"
-python-slugify = "^8.0.4"
-sshkeyboard = "^2.3.1"
-thefuzz = "^0.22.1"
-pytubefix = "^8.13.1"
-rich-argparse = "^1.6.0"
+[project.scripts]
+pypl2mp3 = "pypl2mp3.main:main"
+
+[tool.hatch.build.targets.sdist]
+include = ["src/pypl2mp3"]
+
+[tool.hatch.build.targets.wheel]
+include = ["src/pypl2mp3"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/pypl2mp3" = "pypl2mp3"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.scripts]
-pypl2mp3 = "pypl2mp3.main:main"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
