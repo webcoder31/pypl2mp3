@@ -156,7 +156,7 @@ class Logger:
             }
             
 
-            def format(self, record) -> str:
+            def format(self, record: logging.LogRecord) -> str:
                 """
                 Formats the log record into a string with color and style.
 
