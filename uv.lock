@@ -665,7 +665,7 @@ requires-dist = [
     { name = "proglog", specifier = ">=0.1.10,<0.2" },
     { name = "pygame", specifier = ">=2.6.0,<3" },
     { name = "python-slugify", specifier = ">=8.0.4,<9" },
-    { name = "pytubefix", specifier = ">=8.13.1,<9" },
+    { name = "pytubefix", specifier = ">=9.0.1,<10" },
     { name = "rich-argparse", specifier = ">=1.6.0,<2" },
     { name = "shazamio", specifier = ">=0.4.0,<0.5" },
     { name = "sshkeyboard", specifier = ">=2.3.1,<3" },
@@ -713,11 +713,11 @@ wheels = [
 
 [[package]]
 name = "pytubefix"
-version = "8.13.1"
+version = "9.0.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/db/9a/888947683e333bd3d20a3958115b6c4229d3cd6ff0f75423e841e8606da2/pytubefix-8.13.1.tar.gz", hash = "sha256:c5de0761101a78cb189eec88163368d2300bd86d3c7826ba0e1addb310c58d9c", size = 733912, upload-time = "2025-04-28T23:12:25.989Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ac/6d/85a7801f0980ce71cca538d4620a1d6cf96b2aad0261e5352a4d85c633c5/pytubefix-9.0.1.tar.gz", hash = "sha256:f4dcf31c0e29156893ca5e105d3e7b9ebde02d60d12487fbc358e0e1bd735c11", size = 734176, upload-time = "2025-05-23T11:18:34.546Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c1/76/a9ba64e808f53b7d491c99afc47f4364a0b841bc31d78cc0cd6706ce6520/pytubefix-8.13.1-py3-none-any.whl", hash = "sha256:302eb359d0e2c9fbe25e88439c731d066cc8e5c10dd6a7bac2ce964ff9695255", size = 731504, upload-time = "2025-04-28T23:12:23.792Z" },
+    { url = "https://files.pythonhosted.org/packages/3c/9f/1f4b6cce79d6a866a3cdc52553a061842eab4fb5c19f461f9b6a88706299/pytubefix-9.0.1-py3-none-any.whl", hash = "sha256:490b2c0985fa579de11930d31c64bfe8cb81b61cd2c04ce79c779446686315f8", size = 731921, upload-time = "2025-05-23T11:18:31.291Z" },
 ]
 
 [[package]]
