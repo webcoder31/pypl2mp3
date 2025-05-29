@@ -16,7 +16,7 @@ dependencies = [
     "python-slugify>=8.0.4,<9",
     "sshkeyboard>=2.3.1,<3",
     "thefuzz>=0.22.1,<0.23",
-    "pytubefix>=9.0.1,<10",
+    "pytubefix>=9.1.1,<10",
     "rich-argparse>=1.6.0,<2",
 ]
 
