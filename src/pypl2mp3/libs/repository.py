@@ -70,6 +70,7 @@ def get_repository_playlist(
             - or playlist doesn't exist in the repository when must_exist=True
     """
 
+
     def _get_playlist_folders() -> list[str]:
         """
         Get all playlist folders in the repository.
@@ -85,11 +86,13 @@ def get_repository_playlist(
         Returns:
             List of playlist folder names sorted by deterministic key
         """
+
         return sorted(
             [folder.name for folder in repository_path.glob("*")
              if re.match(r"^.*\[[^\]]+\][^\]]*$", folder.name)],
             key=natural_sort_key
         )
+
 
     def _extract_playlist_id(identifier: str) -> str:
         """
@@ -121,6 +124,7 @@ def get_repository_playlist(
             raise RepositoryException("Invalid playlist ID format.")
 
         return playlist_id
+
 
     # Get all playlist folders in the repository
     playlist_folders = _get_playlist_folders()

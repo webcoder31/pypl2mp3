@@ -55,6 +55,7 @@ class ProgressBarInterface:
     Interface to be used to provide custom progress bar leveraged during 
     song import (see SongModel.create_from_youtube() method)
     """
+
     label: str = ""
     callback: Callable | None = None
 
@@ -66,11 +67,13 @@ class SongModel:
     Note: MP3 files are saved with ID3v2.3 tags only
     """
 
+
     class TerminalProgressBar():
         """
         Inner base class providing a method in charge 
         of printing a progress bar in the terminal
         """
+
 
         def __init__(self, 
                 progress_callback: Callable = None, 
@@ -107,6 +110,7 @@ class SongModel:
             else:
                 self.progress_callback = self.display_progress_bar
 
+
         def display_progress_bar(self, 
                 progress_value: int, 
                 label: str = ""
@@ -133,6 +137,7 @@ class SongModel:
                 end=("\n", "")[progress_value < 100],
                 flush=True
             )
+
 
         def update_progress_bar(self, new_value: float) -> None:
             """
@@ -165,6 +170,7 @@ class SongModel:
 
             self.progress_value = new_value
 
+
         def update(self, new_value: float) -> None:
             """
             Update progress bar
@@ -187,6 +193,7 @@ class SongModel:
         """
         Inner class to display audio stream download progress bar
         """
+
 
         def update(self, 
                 stream: any, 
@@ -220,6 +227,7 @@ class SongModel:
         Inner class to display cover art download progress bar
         """
         
+
         def update(self, 
                 block_number: int, 
                 block_size: int, 
@@ -251,6 +259,7 @@ class SongModel:
         MP3 encoding progress
         """
 
+
         def __init__(self, 
                 progress_callback: Callable | None = None, 
                 label: str = "", 
@@ -271,6 +280,7 @@ class SongModel:
                 progress_callback=progress_callback, 
                 label=label
             )
+
 
         def bars_callback(self, 
                 bar: str, 

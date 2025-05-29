@@ -28,6 +28,7 @@ init(autoreset=True)
 class Logger:
     """
     A class for logging messages to both console and file.
+
     This class provides methods to log messages at different 
     levels (debug, info, warning, error, critical) and allows 
     for customization of the logging format and handlers.
@@ -44,6 +45,7 @@ class Logger:
     A dictionary mapping string log levels to their corresponding
     logging module constants.
     """
+
 
     def __init__(self, 
         console_handler_level=logging.INFO, 
@@ -277,6 +279,7 @@ class Logger:
                     tracebacks = parent._get_short_tracebacks(record.exc_info)
                     tracebacks_len = len(tracebacks)
                     message = record.getMessage()
+                    
                     for i, msg in enumerate(tracebacks, 0):
                         message += f"\n\t[{tracebacks_len - i}] {msg}"
 

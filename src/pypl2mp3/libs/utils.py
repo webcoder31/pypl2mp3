@@ -31,6 +31,7 @@ class LabelFormatter:
     
     width: int
     
+
     def format(self, label: str) -> str:
         """
         Format a label with consistent width and styling.
@@ -41,12 +42,14 @@ class LabelFormatter:
         Returns:
             Formatted label string
         """
+
         return (
             f"{Fore.WHITE}{Style.DIM}"
             f"{label.ljust(self.width)}"
             f"{Style.RESET_ALL}"
         )
     
+
     def pad_only(self, label: str) -> str:
         """
         Format a label with consistent width but no styling.
@@ -57,6 +60,7 @@ class LabelFormatter:
         Returns:
             Right-padded label
         """
+
         return f"{label.ljust(self.width)}"
 
 
@@ -68,10 +72,12 @@ class CountFormatter:
     
     total_count: int
     
+
     def __post_init__(self):
         self.number_width = max(2, len(str(self.total_count)))
         self.width = self.number_width * 2 + 1
     
+
     def format(self, current: int) -> str:
         """
         Format a progress counter (e.g., '01/10').
@@ -91,6 +97,7 @@ class CountFormatter:
             f"{Style.RESET_ALL}"
         )
     
+
     def placeholder(self, text: str = '') -> str:
         """
         Create a placeholder of appropriate width.
@@ -169,21 +176,21 @@ def get_match_score(artist: str, title: str, keywords: str) -> float:
     
     score = 0.0
     penalty = 0
-    stacked_keywords = ''
+    keyword_acc = ''
     weight = len(keyword_list)
     weight_sum = sum(range(1, weight + 1))
     
     # Calculate score based on keyword presence and fuzzy matching
     for keyword in keyword_list:
-        stacked_keywords = f'{stacked_keywords} {keyword}'.strip()
+        keyword_acc = f'{keyword_acc} {keyword}'.strip()  # Accumulate keywords
         
         if keyword in song_name:
             score += 100 * weight
         else:
             fuzzy_score = (
-                fuzz.WRatio(stacked_keywords, artist.lower()) +
-                fuzz.WRatio(stacked_keywords, title.lower()) +
-                3 * fuzz.WRatio(stacked_keywords, song_name)
+                fuzz.WRatio(keyword_acc, artist.lower()) +
+                fuzz.WRatio(keyword_acc, title.lower()) +
+                3 * fuzz.WRatio(keyword_acc, song_name)
             ) / 5
             
             if fuzzy_score < 100 - 10 * len(keyword_list):
@@ -325,4 +332,4 @@ def format_song_details_display(
             f"{Fore.LIGHTBLUE_EX}{value}{Style.RESET_ALL}"
         )
 
-    return '\n'.join(items)
+    return "\n".join(items)
