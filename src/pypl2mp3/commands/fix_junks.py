@@ -387,17 +387,19 @@ class JunkSongTagger:
             video_url = f"https://youtube.com/watch?v={song.youtube_id}"
             metadata = YouTube(video_url, client="WEB")
 
+            cover_art_status = 'Exists' if metadata.thumbnail_url else 'None'
+
             print("\x1b[K", end="\r")
             print(
                 self.label_formatter.format("⇨ YouTube metadata:")
                 + f"{Fore.LIGHTCYAN_EX}"
                 + f"{Style.DIM}Artist:{Style.NORMAL} {metadata.author}, "
                 + f"{Style.DIM}Title:{Style.NORMAL} {metadata.title}, "
-                + f"{Style.DIM}Cover art:{Style.NORMAL} "
-                + f"{'Exists' if metadata.thumbnail_url else 'None'}"
+                + f"{Style.DIM}Cover art:{Style.NORMAL} {cover_art_status}"
             )
         except Exception as exc:
             # Raise exception
+            print()  # Jump to next line in terminal before printing error
             raise TagJunkSongException(
                 f"Failed to retrieve YouTube metadata"
             ) from exc
