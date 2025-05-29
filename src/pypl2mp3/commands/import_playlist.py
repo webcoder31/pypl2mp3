@@ -60,6 +60,7 @@ class SongReport:
     reason: Optional[str] = None
     issue: Optional[str] = None
 
+
     def __getitem__(self, item: str):
         """
         Implement dictionary-like access to report attributes.
@@ -346,16 +347,15 @@ async def import_playlist(args: any) -> None:
     # Retrieve YouTube playlist data and handle potential errors
     try:
         plst = Playlist(selected_playlist.url, "WEB")
+        # Check if playlist data is empty
+        if not plst or not plst.videos:
+            raise ImportPlaylistException(
+                f"Playlist \"{selected_playlist.id}\" is empty or inaccessible."
+            )
     except Exception as exc:
         raise ImportPlaylistException(
             f"Failed to get playlist \"{selected_playlist.id}\" from YouTube"
         ) from exc
-
-    # Check if playlist data is empty
-    if not plst or not plst.videos:
-        raise ImportPlaylistException(
-            f"Playlist \"{selected_playlist.id}\" is empty or inaccessible."
-        )
     
     # Log playlist information
     logger.info(

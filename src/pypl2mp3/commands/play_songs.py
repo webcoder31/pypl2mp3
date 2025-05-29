@@ -91,47 +91,26 @@ class PlayerState:
 player = PlayerState()
 
 
-def _init_pygame_mixer() -> None:
+def _display_controls() -> None:
     """
-    Initialize pygame mixer for audio playback.
-    """
-
-    pygame.mixer.init()
-
-
-def _cleanup_player() -> None:
-    """
-    Clean up player resources and stop playback.
+    Display available keyboard controls.
     """
 
-    pygame.mixer.music.stop()
-    stop_listening()
-    pygame.quit()
-    if player.player_thread:
-        player.player_thread.join()
+    controls = [
+        ("  <--  ", "Prev song / Play backward"),
+        ("  -->  ", "Next song / Play forward"),
+        (" SPACE ", "Pause song / Play song"),
+        ("  TAB  ", "Open song video in browser"),
+        ("  ESC  ", "Quit player")
+    ]
 
-
-def _get_next_song_index(current: int, direction: str, total: int) -> int:
-    """
-    Calculate the next song index based on direction.
-
-    Args:
-        current: Current song index
-        direction: Play direction ('forward' or 'backward')
-        total: Total number of songs
-
-    Returns:
-        int: Next song index
-    """
-
-    step = 1 if direction == "forward" else -1
-    next_index = current + step
-    next_index = (next_index + total) % (2 * total) - total
-
-    if next_index < 0:
-        next_index = total + next_index
-
-    return next_index
+    print()
+    for key, description in controls:
+        print(
+            f"{Fore.LIGHTMAGENTA_EX}{Style.BRIGHT}[{key}]  {Style.RESET_ALL}"
+            f"{Fore.LIGHTMAGENTA_EX}{description}"
+        )
+    print()
 
 
 def _display_song_information(
@@ -170,6 +149,77 @@ def _display_song_information(
             end="", 
             flush=True
         )
+
+
+def _cleanup_player() -> None:
+    """
+    Clean up player resources and stop playback.
+    """
+
+    pygame.mixer.music.stop()
+    stop_listening()
+    pygame.quit()
+    if player.player_thread:
+        player.player_thread.join()
+
+
+async def _handle_keypress(key: str) -> None:
+    """
+    Handle keyboard input for player control.
+
+    Args:
+        key: Pressed key identifier
+    """
+
+    controls = {
+        "right": lambda: setattr(player, "play_direction", "forward"),
+        "left": lambda: setattr(player, "play_direction", "backward"),
+        "space": _toggle_pause,
+        "tab": lambda: webbrowser.open(player.current_url),
+        "esc": _cleanup_player
+    }
+
+    if key in controls:
+        controls[key]()
+
+        if key in ("right", "left"):
+            # Skip to next song
+            player.is_running = False
+
+
+def _toggle_pause() -> None:
+    """
+    Toggle play/pause state.
+    """
+
+    player.is_paused = not player.is_paused
+    if player.is_paused:
+        pygame.mixer.music.pause()
+    else:
+        pygame.mixer.music.unpause()
+
+
+def _get_next_song_index(current: int, direction: str, total: int) -> int:
+    """
+    Calculate the next song index based on direction.
+
+    Args:
+        current: Current song index
+        direction: Play direction ('forward' or 'backward')
+        total: Total number of songs
+
+    Returns:
+        int: Next song index
+    """
+
+    step = 1 if direction == "forward" else -1
+    next_index = current + step
+    next_index = (next_index + total) % (2 * total) - total
+
+    if next_index < 0:
+        next_index = total + next_index
+
+    return next_index
 
 
 def _run_playback_loop() -> None:
@@ -226,64 +276,6 @@ def _run_playback_loop() -> None:
             ) from exc
 
 
-async def _handle_keypress(key: str) -> None:
-    """
-    Handle keyboard input for player control.
-
-    Args:
-        key: Pressed key identifier
-    """
-
-    controls = {
-        "right": lambda: setattr(player, "play_direction", "forward"),
-        "left": lambda: setattr(player, "play_direction", "backward"),
-        "space": _toggle_pause,
-        "tab": lambda: webbrowser.open(player.current_url),
-        "esc": _cleanup_player
-    }
-
-    if key in controls:
-        controls[key]()
-
-        if key in ("right", "left"):
-            # Skip to next song
-            player.is_running = False
-
-
-def _toggle_pause() -> None:
-    """
-    Toggle play/pause state.
-    """
-
-    player.is_paused = not player.is_paused
-    if player.is_paused:
-        pygame.mixer.music.pause()
-    else:
-        pygame.mixer.music.unpause()
-
-
-def _display_controls() -> None:
-    """
-    Display available keyboard controls.
-    """
-
-    controls = [
-        ("  <--  ", "Prev song / Play backward"),
-        ("  -->  ", "Next song / Play forward"),
-        (" SPACE ", "Pause song / Play song"),
-        ("  TAB  ", "Open song video in browser"),
-        ("  ESC  ", "Quit player")
-    ]
-
-    print()
-    for key, description in controls:
-        print(
-            f"{Fore.LIGHTMAGENTA_EX}{Style.BRIGHT}[{key}]  {Style.RESET_ALL}"
-            f"{Fore.LIGHTMAGENTA_EX}{description}"
-        )
-    print()
-
-
 def play_songs(args: any) -> None:
     """
     Main entry point for the song player.
@@ -315,15 +307,21 @@ def play_songs(args: any) -> None:
     except SystemExit as exc:
         return
 
+    # Handle shuffle option
     if args.shuffle:
         random.shuffle(player.song_files)
 
+    # Display available keyboard controls
+    _display_controls()
+
+    # Initialize pygame mixer for audio playback
+    pygame.mixer.init()
+
+    # Prepare the player
     player.song_count = len(player.song_files)
     player.count_formatter = CountFormatter(player.song_count)
 
-    _init_pygame_mixer()
-    _display_controls()
-
+    # Start the player
     try:
         player.player_thread = Thread(target=_run_playback_loop, daemon=True)
         player.player_thread.start()
@@ -332,4 +330,5 @@ def play_songs(args: any) -> None:
         _cleanup_player()
         raise
 
+    # Listen to keyboard inputs
     listen_keyboard(on_press=_handle_keypress, sequential=True)

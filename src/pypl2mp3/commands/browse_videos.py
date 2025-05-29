@@ -54,23 +54,11 @@ def browse_videos(args: any) -> None:
     )
     
     # Check if some songs match selection crieria
-    # iI none, then return
+    # If none, then return
     try:
         check_and_display_song_selection_result(song_files)
     except SystemExit:
         return
-
-    _process_songs(song_files, args.verbose)
-
-
-def _process_songs(song_files: list[Path], verbose: bool) -> None:
-    """
-    Process each song, displaying information and handling URL opening.
-    
-    Args:
-        song_files: List of paths to song files
-        verbose: Whether to display detailed information
-    """
 
     count_formatter = CountFormatter(len(song_files))
 
@@ -80,35 +68,13 @@ def _process_songs(song_files: list[Path], verbose: bool) -> None:
         
         print(f"\n{format_song_display(song, counter)}")
         
-        if verbose:
+        if args.verbose:
             print(format_song_details_display(song, count_formatter))
-            
-        if _should_open_url():
-            _open_youtube_url(song.youtube_id)
 
-
-def _should_open_url() -> bool:
-    """
-    Prompt user for URL opening confirmation.
-
-    Returns:
-        bool: True if user wants to open URL, False otherwise
-    """
-
-    response = prompt_user(
-        "Do you want to open video for this song",
-        ["yes", "no"]
-    )
-    return response == "yes"
-
-
-def _open_youtube_url(youtube_id: str) -> None:
-    """
-    Open YouTube URL in default browser.
-
-    Args:
-        youtube_id: YouTube video ID
-    """
-    
-    url = f"https://youtu.be/{youtube_id}"
-    webbrowser.open(url, new=0, autoraise=True)
+        response = prompt_user(
+            "Do you want to open video for this song",
+            ["yes", "no"]
+        )
+        if response == "yes":
+            url = f"https://youtu.be/{song.youtube_id}"
+            webbrowser.open(url, new=0, autoraise=True)
