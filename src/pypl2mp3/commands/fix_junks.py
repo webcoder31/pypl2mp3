@@ -525,7 +525,7 @@ class JunkSongTagger:
             TagJunkSongException: If it fails to rename MP3 file
         """
         print(
-            self.label_formatter.format("⇨ New filename from tags:") 
+            self.label_formatter.format("⇨ Filename from tags:") 
             + f"{Fore.CYAN}{Style.BRIGHT}{song.expected_filename}"
         )
         filename_fix_choice = prompt_user(
