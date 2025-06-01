@@ -1,4 +1,5 @@
 # Local files to ignore
+debug/
 pypl2mp3.app
 pypl2mp3.scpt
 
