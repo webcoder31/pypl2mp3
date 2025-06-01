@@ -39,12 +39,37 @@ from pypl2mp3.libs.utils import (
 init(autoreset=True)
 
 
+# ------------------------
+# Constants
+# ------------------------
+
+# Match thresholds for filtering
+DEFAULT_FILTER_THRESHOLD = 45.0  # Default minimum match score for keyword filtering
+MIN_MATCH_THRESHOLD = 0.0        # Minimum allowed match threshold
+MAX_MATCH_THRESHOLD = 100.0      # Maximum allowed match threshold
+
+# ------------------------
+# Exceptions
+# ------------------------
+
 class RepositoryException(AppBaseException):
     """
-    Custom exception for repository errors.
+    Exception raised for repository-specific errors.
+    
+    This custom exception type helps distinguish repository-related errors
+    from other application errors, enabling more specific error handling.
+    Common scenarios include:
+    - Invalid playlist IDs
+    - Missing playlists/songs
+    - Out of range indices
+    - Multiple matching playlists
     """
     pass
 
+
+# ------------------------
+# Public Functions
+# ------------------------
 
 def get_repository_playlist(
     repository_path: Path,
@@ -52,39 +77,51 @@ def get_repository_playlist(
     must_exist: bool = True
 ) -> SimpleNamespace:
     """
-    Retrieve playlist information from a playlist identifier.
+    Retrieve and validate playlist information from an identifier.
+
+    Takes a playlist identifier (ID, URL, or index) and returns detailed
+    playlist information. Handles validation and existence checking.
 
     Args:
-        repository_path: Path to the repository root
-        playlist_identifier: YouTube playlist ID, URL, or index number
-        must_exist: If True, raises error when playlist isn't found
+        repository_path (Path): Root directory path for the repository
+        playlist_identifier (str): YouTube playlist ID, URL, or index number
+        must_exist (bool, optional): If True, raises error when playlist
+            isn't found. Defaults to True.
 
     Returns:
-        SimpleNamespace with playlist details 
-            (id, url, exists, folder, path, name)
+        SimpleNamespace: Playlist details containing:
+            - id (str): YouTube playlist ID
+            - url (str): Full YouTube playlist URL
+            - exists (bool): Whether playlist exists in repository
+            - folder (str | None): Folder name if exists, else None
+            - path (Path | None): Full folder path if exists, else None
+            - name (str | None): Display name if exists, else None
 
     Raises:
-        RepositoryError: 
-            - If playlist ID format is invalid 
-            - or provided optional playlist index is out of range 
-            - or playlist doesn't exist in the repository when must_exist=True
+        RepositoryException: When:
+            - Playlist ID format is invalid (not 16-34 alphanumeric chars)
+            - Provided playlist index is out of range
+            - Playlist doesn't exist in repository (if must_exist=True)
+            - Multiple playlists match the same ID
     """
 
 
     def _get_playlist_folders() -> list[str]:
         """
-        Get all playlist folders in the repository.
+        Find and sort playlist folders in the repository.
 
-        This function retrieves all folders in the repository that match
-        the expected playlist naming convention. The folders are sorted
-        by a deterministic key to ensure consistent ordering.
-        The naming convention is expected to be: "PlaylistName [YouTubeID]".
+        Scans the repository directory for folders matching the playlist
+        naming pattern: "PlaylistName [YouTubeID]". Only matches properly
+        formatted folders with bracketed YouTube IDs.
 
-        Args:
-            repository_path: Path to the repository root
+        The folders are sorted using natural_sort_key() for consistent,
+        human-friendly ordering that:
+        - Handles numbers properly ("2" before "10")
+        - Is case-insensitive
+        - Normalizes special characters
 
         Returns:
-            List of playlist folder names sorted by deterministic key
+            list[str]: Playlist folder names in sorted order
         """
 
         return sorted(
@@ -96,16 +133,32 @@ def get_repository_playlist(
 
     def _extract_playlist_id(identifier: str) -> str:
         """
-        Extract YouTube playlist ID from a URL or ID string.
+        Extract and validate YouTube playlist ID.
+
+        Handles two input formats:
+        1. Raw ID string (16-34 alphanumeric chars)
+        2. YouTube URL with 'list' parameter
+
+        Enforces ID format rules:
+        - Length: 16-34 characters
+        - Content: Only letters, numbers, hyphens, underscores
+        - No spaces or special characters
 
         Args:
-            identifier: YouTube playlist ID or URL
+            identifier (str): YouTube playlist ID or URL
+                Examples:
+                - "PLH6pfGXX1JvLxWqCdgdj2QyR"
+                - "https://youtube.com/playlist?list=PLH6pfGXX1JvLxWqCdgdj2QyR"
 
         Returns:
-            Extracted playlist ID
+            str: Validated YouTube playlist ID
 
         Raises:
-            RepositoryError: If the playlist ID format is invalid
+            RepositoryException: If playlist ID is invalid:
+                - Wrong length (not 16-34 chars)
+                - Invalid characters
+                - Malformed URL
+                - Missing playlist ID
         """
 
         # Try to extract the playlist ID from the identifier handled as a URL
@@ -159,7 +212,7 @@ def get_repository_playlist(
     # If multiple folders match the playlist ID, raise an error
     if len(matching_folders) > 1:
         raise RepositoryException(
-            "Multiple playlists match YouTube ID in repository."
+            f"Multiple playlists match YouTube ID \"{playlist_id}\" in repository."
         )
     
     if not matching_folders:
@@ -168,7 +221,7 @@ def get_repository_playlist(
         # and must_exist is True, raise an error
         if must_exist:
             raise RepositoryException(
-                "Expected playlist does not exist in repository."
+                f"Expected playlist \"{playlist_id}\" does not exist in repository."
             )
         
         # If no matching folders are found and must_exist is False, return 
@@ -198,27 +251,38 @@ def get_repository_song_files(
     repository_path: Path,
     junk_only: bool = False,
     keywords: str = "",
-    filter_match_threshold: float = 45,
+    filter_match_threshold: float = DEFAULT_FILTER_THRESHOLD,
     song_index: Optional[int] = None,
     playlist_identifier: Optional[str] = None,
-) -> list[Path]:
+) -> list[Path] | None:
     """
-    Retrieve song files from repository or playlist 
-    matching specified criteria.
+    Search and retrieve song files matching specified criteria.
+
+    Performs a flexible search across the repository or within a specific playlist,
+    with support for filtering by keywords, junk status, and specific indices.
+    Uses fuzzy string matching for keyword filtering with customizable threshold.
 
     Args:
-        repository_path: Root path of the repository
-        junk_only: If True, only return songs marked as junk
-        keywords: Search terms to filter songs
-        filter_match_threshold: Minimum match score for keyword filtering
-        song_index: Specific song index to retrieve (1-based, 0 for random)
-        playlist_identifier: Optional playlist to search within
+        repository_path (Path): Root path of the repository
+        junk_only (bool, optional): If True, only return songs marked as junk.
+            Defaults to False.
+        keywords (str, optional): Search terms to filter songs. Defaults to "".
+        filter_match_threshold (float, optional): Minimum match score (0-100)
+            for keyword filtering. Defaults to DEFAULT_FILTER_THRESHOLD.
+        song_index (Optional[int], optional): Specific song index to retrieve.
+            1-based indexing, 0 for random selection. Defaults to None.
+        playlist_identifier (Optional[str], optional): Limit search to this
+            playlist. Accepts ID, URL or index. Defaults to None.
 
     Returns:
-        List of paths to matching song files or None if no songs are found
+        list[Path] | None: List of paths to matching song files, or None if
+            no matches found. Files are ordered by:
+            - Match score (if keywords provided)
+            - Artist/title (if no keywords)
 
     Raises:
-        RepositoryError: If provided optional song index is out of range
+        RepositoryException: When provided song index is out of range
+        ValueError: When filter_match_threshold is not between 0 and 100
     """
 
     search_path = repository_path
@@ -252,7 +316,7 @@ def get_repository_song_files(
 
         # If song index is out of range, raise an error
         if not (0 <= song_index <= len(song_files)):
-            raise RepositoryException("Song index is out of range.")
+            raise RepositoryException(f"Song index \"{song_index}\" is out of range.")
         
         # If song index is 0, select a random song
         index = random.randint(0, len(song_files) - 1) if song_index == 0 \
@@ -266,33 +330,45 @@ def get_repository_song_files(
     return song_files
 
 
+# ------------------------
+# Private Helper Functions
+# ------------------------
+
 def _find_matching_songs(
     search_path: Path,
     keywords: str = "",
-    threshold: float = 45,
+    threshold: float = DEFAULT_FILTER_THRESHOLD,
     junk_only: bool = False
-) -> list[Path]:
+) -> list[Path] | None:
     """
-    Find and sort song files based on search criteria and match scores.
+    Find and sort songs matching given criteria.
 
-    This function searches for song files in the specified path,
-    filters them based on keywords and match scores, and returns
-    a sorted list of matching song file paths. The search can be
-    restricted to junk songs only if specified.
-
-    If no keywords are provided, the function will return all
-    song files sorted by name. If keywords are provided, the
-    function will filter the song files based on normalized match
-    score and return only those that meet the specified threshold.
+    Performs a comprehensive song search and scoring operation:
+    1. Collects all MP3 files in the search path
+    2. Filters for valid YouTube song IDs
+    3. When keywords provided:
+       - Calculates match scores against artist/title
+       - Normalizes scores to 0-100 range
+       - Filters by threshold
+       - Sorts by match score
+    4. When no keywords:
+       - Sorts by artist/title naturally
 
     Args:
-        search_path: Path to search for song files
-        keywords: Search terms to filter songs
-        threshold: Minimum match score for keyword filtering
-        junk_only: If True, only return songs marked as junk
+        search_path (Path): Directory to search for songs
+        keywords (str, optional): Search terms to filter songs. Defaults to "".
+        threshold (float, optional): Minimum normalized match score (0-100)
+            for inclusion. Defaults to 45.0.
+        junk_only (bool, optional): Only include songs marked as junk.
+            Defaults to False.
 
     Returns:
-        List of paths to matching song files or None if no songs are found
+        list[Path] | None: Sorted list of matching song paths, or None if no
+            matches found
+
+    Note:
+        The scoring algorithm uses fuzzy string matching and square root
+        normalization to provide intuitive relative rankings.
     """
     
     # Get all valid song files with YouTube IDs
@@ -320,13 +396,21 @@ def _find_matching_songs(
 
 def _sort_songs_by_name(song_files: list[Path]) -> list[Path]:
     """
-    Sort songs by artist and title.
+    Sort songs naturally by artist and title.
+
+    Creates composite sort keys from artist and title metadata for each song,
+    then performs a natural sort that handles numbers intelligently.
+    Falls back to parent folder name as secondary sort key.
 
     Args:
-        song_files: List of song file paths
+        song_files (list[Path]): List of song file paths to sort
 
     Returns:
-        List of sorted song file paths
+        list[Path]: Songs sorted by "Artist - Title", then by folder name
+        
+    Note:
+        Songs with unreadable metadata are logged and skipped. The natural
+        sort handles cases like "Track 2" vs "Track 10" correctly.
     """
     
     # Create a list of song objects with their paths and names
@@ -360,17 +444,32 @@ def _filter_and_sort_songs_by_match_score(
     song_files: list[Path],
     keywords: str,
     threshold: float
-) -> list[Path]:
+) -> list[Path] | None:
     """
-    Filter and sort songs based on normalized keyword match scores.
+    Filter and rank songs by keyword match relevance.
+
+    Two-step process:
+    1. Initial scoring:
+       - Reads metadata for each song
+       - Calculates raw match scores against keywords
+       - Retains songs with non-zero scores
+    2. Score processing:
+       - Normalizes scores to 0-100 range
+       - Filters by threshold
+       - Sorts by final score
 
     Args:
-        song_files: List of song file paths
-        keywords: Search terms to filter songs
-        threshold: Minimum match score for keyword filtering
+        song_files (list[Path]): Songs to process
+        keywords (str): Search terms to match against
+        threshold (float): Minimum normalized score (0-100) for inclusion
 
     Returns:
-        List of filtered and sorted song file paths
+        list[Path] | None: Ranked list of matching songs, or None if no matches
+        
+    Note:
+        Uses fuzzy string matching to handle minor variations in spelling and
+        word order. The normalization ensures consistent scoring across different
+        keyword sets.
     """
     
     # Create a list of song objects with their paths and match scores
@@ -400,19 +499,30 @@ def _filter_and_sort_songs_by_match_score(
 
 
 def _normalize_and_filter_song_matches(
-    matched_songs: list[dict],
+    matched_songs: list[dict[str, Path | float]],
     threshold: float
-) -> list[Path]:
+) -> list[Path] | None:
     """
-    Normalize song match scores and filter based on threshold.
+    Normalize match scores and apply threshold filtering.
 
+    Implements score normalization algorithm:
+    1. Orders matches by raw score to preserve ranking
+    2. Calculates score range and minimum
+    3. Applies square root normalization to compress range:
+       normalized = √(raw - min) / √(range) * 100
+    4. Filters by normalized threshold
+    
     Args:
-        matched_songs: List of matched songs with scores to normalize
-        threshold: Minimum normalized score for final filtering
+        matched_songs (list[dict[str, Path | float]]): Songs with raw scores.
+            Each dict must have 'path' and 'match_level' keys.
+        threshold (float): Minimum normalized score (0-100) to retain
 
     Returns:
-        List of filtered song file paths sorted by match score 
-        or None if no matches
+        list[Path] | None: Filtered and sorted song paths, or None if no matches
+        
+    Note:
+        The square root normalization helps emphasize relative differences
+        between closely matched songs while compressing larger gaps.
     """
 
     # First, sort matched songs by match level in descending order

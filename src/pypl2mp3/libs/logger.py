@@ -3,10 +3,15 @@
 PYPL2MP3: YouTube playlist MP3 converter and player,
 with Shazam song identification and tagging capabilities.
 
-This module provides a custom logger class for logging messages to  
-both console and file. It includes methods for logging at different
-levels (debug, info, warning, error, critical) and allows for 
-customization of the logging format and handlers.
+This module provides a custom logging system with:
+- Console output with color-coded log levels
+- Optional file logging with detailed formatting
+- Support for shortened stack traces
+- Configurable verbosity levels
+- Exception chain tracking
+
+The logger supports both development (file logging, all levels)
+and production (console only, warnings and above) configurations.
 
 Copyright 2024 © Thierry Thiers <webcoder31@gmail.com>
 License: CeCILL-C (http://www.cecill.info)
@@ -14,16 +19,40 @@ Repository: https://github.com/webcoder31/pypl2mp3
 """
 
 # Python core modules
+from dataclasses import dataclass
 import logging
 import sys
 import traceback
+from typing import Any, Optional, Union, Dict, List
 
 # Third-party packages
 from colorama import Fore, Style, init
 
-# Automatically clear style on each print
-init(autoreset=True)
+# ------------------------
+# Constants
+# ------------------------
 
+# Log levels
+DEBUG = logging.DEBUG         # Detailed information for debugging
+INFO = logging.INFO           # General information about program execution
+WARNING = logging.WARNING     # Warning messages for potential issues
+ERROR = logging.ERROR         # Error messages for recoverable problems
+CRITICAL = logging.CRITICAL   # Critical errors that may cause program termination
+
+# Default configuration
+DEFAULT_CONSOLE_LEVEL = WARNING   # Only show warnings and above in console
+DEFAULT_FILE_LEVEL = DEBUG        # Log everything to file if enabled
+DEFAULT_VERBOSE_ERRORS = False    # Don't show stack traces by default
+DEFAULT_ENABLE_FILE = False       # Console-only logging by default
+
+# Formatting
+LOG_FORMAT = "%(asctime)s.%(msecs)03d | %(levelname)s | %(message)s"
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+INDENT = " " * 3  # Indentation for multi-line log messages
+
+# ------------------------
+# Logger Class
+# ------------------------
 
 class Logger:
     """
@@ -34,40 +63,59 @@ class Logger:
     for customization of the logging format and handlers.
     """
 
-    LOG_LEVELS: map = {
-        "DEBUG": logging.DEBUG,
-        "INFO": logging.INFO,
-        "WARNING": logging.WARNING,
-        "ERROR": logging.ERROR,
-        "CRITICAL": logging.CRITICAL
+    # Map string level names to logging module constants
+    LOG_LEVELS: Dict[str, int] = {
+        "DEBUG": DEBUG,
+        "INFO": INFO,
+        "WARNING": WARNING,
+        "ERROR": ERROR,
+        "CRITICAL": CRITICAL
     }
-    """
-    A dictionary mapping string log levels to their corresponding
-    logging module constants.
-    """
 
 
-    def __init__(self, 
-        console_handler_level=logging.INFO, 
-        verbose_errors_enabled=False, 
-        enable_file_handler=False, 
-        file_handler_log_file=None, 
-        file_handler_level=logging.DEBUG,
-        file_handler_traceback_enabled = False
-    ) -> "Logger":
+    def __init__(
+        self,
+        console_handler_level: Union[str, int] = DEFAULT_CONSOLE_LEVEL,
+        verbose_errors_enabled: bool = DEFAULT_VERBOSE_ERRORS,
+        enable_file_handler: bool = DEFAULT_ENABLE_FILE,
+        file_handler_log_file: Optional[str] = None,
+        file_handler_level: Union[str, int] = DEFAULT_FILE_LEVEL,
+        file_handler_traceback_enabled: bool = False
+    ) -> None:
         """
-        Initializes the Logger instance with a specified log file, 
-        console logging level, and file logging option.
+        Initialize a logger with configurable console and file output.
+
+        Creates a logger that can write to both console and file with different
+        configurations for each. Console output is colorized and can be configured
+        to show different levels of detail. File output provides more detailed
+        logging with timestamps and optional stack traces.
 
         Args:
-            console_handler_level: The logging level for console output 
-                ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL").
-            verbose_errors_enabled: Whether to include
-                verbose error messages for console and file logging.
-            file_handler_log_file: The path of the log file to write logs to.
-            file_handler_enabled: Whether to enable file logging.
-            file_handler_traceback_enabled: Whether to include
-                traceback information in the messages logged in log file.
+            console_handler_level (Union[str, int], optional): Minimum level for
+                console output. Can be string ("DEBUG", "INFO", etc) or logging
+                constant. Defaults to WARNING (show warnings and above).
+            verbose_errors_enabled (bool, optional): Whether to show shortened
+                stack traces in console output. Defaults to False.
+            enable_file_handler (bool, optional): Whether to enable logging to
+                file. Defaults to False.
+            file_handler_log_file (Optional[str], optional): Path to log file.
+                Required if file_handler_enabled is True. Defaults to None.
+            file_handler_level (Union[str, int], optional): Minimum level for
+                file output. Defaults to DEBUG (log everything).
+            file_handler_traceback_enabled (bool, optional): Whether to include
+                full stack traces in file output. Defaults to False.
+
+        Example:
+            >>> # Basic console-only logger
+            >>> logger = Logger()
+            >>> # Full debug logging to file
+            >>> logger = Logger(
+            ...     enable_file_handler=True,
+            ...     file_handler_log_file="debug.log",
+            ...     file_handler_level="DEBUG"
+            ... )
+            >>> # Console logger with stack traces
+            >>> logger = Logger(verbose_errors_enabled=True)
         """
 
         # Set up the logger
@@ -96,16 +144,30 @@ class Logger:
             self._add_file_handler()
 
 
-    def _get_short_tracebacks(self, exc_info: any) -> list[str]:
+    def _get_short_tracebacks(self, exc_info: tuple[type, Exception, Any]) -> List[str]:
         """
-        Return the chain of exceptions into a list of strings,
-        each with type and error message.
+        Extract simplified traceback information from exception chain.
+
+        Follows exception chain through __cause__ and __context__ to build
+        a list of error messages without full stack traces. Useful for
+        console output where full tracebacks would be too verbose.
 
         Args:
-            exc_info: The exception information (sys.exc_info()).
+            exc_info (tuple[type, Exception, Any]): Exception info from
+                sys.exc_info() containing (type, value, traceback)
 
         Returns:
-            A list of strings representing the exception chain.
+            List[str]: List of error messages in reverse chronological order
+                (most recent first)
+
+        Example:
+            ```
+            try:
+                raise ValueError("Invalid") from FileNotFoundError("Missing")
+            except Exception:
+                msgs = _get_short_tracebacks(sys.exc_info())
+                # ['ValueError: Invalid', 'FileNotFoundError: Missing']
+            ```
         """
 
         tracebacks = []
@@ -126,11 +188,24 @@ class Logger:
 
     def _console_handler_formatter(self) -> logging.Formatter:
         """
-        Returns a custom formatter for the console handler.
+        Create a color-coded formatter for console output.
 
-        This formatter formats log messages with colors based on the log level.
-        It also handles exceptions and formats them with a specific
-        format to restitute the error chain.
+        Creates a ConsoleHandlerFormatter that:
+        - Adds color based on log level (using LEVEL_COLORS)
+        - Formats messages with level prefix: [LEVEL] message
+        - Optionally adds indented and numbered stack traces
+        - Preserves ANSI color through multi-line output
+
+        Returns:
+            logging.Formatter: Configured formatter instance that
+                produces colored, properly formatted console output
+
+        Example output:
+            [INFO] Starting process...             # Green
+            [WARNING] File exists, overwriting...  # Yellow
+            [ERROR] Process failed:                # Red
+               [2] ValueError: Invalid input
+               [1] OSError: File not found
         """
 
         # Define a reference to the parent logger instance
@@ -138,14 +213,31 @@ class Logger:
         # (e.g., to access the file handler and traceback attributes)
         parent = self
 
-        class CoonsoleHandlerFormatter(logging.Formatter):
+        class ConsoleHandlerFormatter(logging.Formatter):
             """
-            Custom formatter for console handler to format log messages
-            with colors based on log level.
+            Format console log messages with color and optional stack traces.
 
-            This formatter also handles exceptions and can provide a
-            shortened version of the stack trace along with the message 
-            for verbose errors.
+            Provides:
+            - Color-coded output based on log level
+            - Consistent indentation and formatting
+            - Optional shortened stack traces for errors
+            - Exception chain tracking
+
+            The formatter uses ANSI color codes from colorama and applies:
+            - Blue for DEBUG
+            - Green for INFO
+            - Yellow for WARNING
+            - Red for ERROR
+            - Magenta for CRITICAL
+
+            Stack traces (when enabled) are shown in the same color as
+            the log level, indented, and numbered to show the chain
+            of exceptions.
+
+            Example output:
+                [ERROR] Failed to process file
+                   [2] ValueError: Invalid format
+                   [1] FileNotFoundError: File does not exist
             """
 
             # Define color codes for different log levels
@@ -160,17 +252,31 @@ class Logger:
 
             def format(self, record: logging.LogRecord) -> str:
                 """
-                Formats the log record into a string with color and style.
+                Format a log record with color coding and optional stack traces.
 
-                This method is called when a log record is emitted.
-                It handles the formatting of the log entry, including
-                the log level, message, and any exception information.
+                Applies consistent formatting to log records:
+                1. Colors the output based on log level
+                2. Adds [LEVEL] prefix in the correct color
+                3. Formats the message text
+                4. Optionally adds indented stack traces for errors
+                5. Ensures ANSI color codes are properly reset
 
                 Args:
-                    record: The log record to be formatted.
+                    record (logging.LogRecord): Log record to format containing:
+                        - levelno: Numeric logging level
+                        - levelname: Level name (DEBUG, INFO, etc)
+                        - msg: The log message
+                        - exc_info: Exception info if any
 
                 Returns:
-                    A formatted string representing the log message.
+                    str: Fully formatted log entry with colors and layout
+
+                Example:
+                    Input record with level=ERROR, msg="Failed", exc_info=True
+                    Output (with colors):
+                        [ERROR] Failed
+                           [2] ValueError: Invalid input
+                           [1] IOError: File not found
                 """
 
                 # Set the color based on the log level
@@ -195,14 +301,26 @@ class Logger:
                 return log_entry
 
         # Return the custom formatter for console handler
-        return CoonsoleHandlerFormatter("%(message)s")
+        return ConsoleHandlerFormatter("%(message)s")
 
 
     def _add_console_handler(self) -> None:
         """
-        Adds a console handler to the logger if it doesn't already exist.
-        This handler writes colored log messages to the console (stdout)
-        based on the log level.
+        Set up console output handler with color formatting.
+
+        Creates and configures a StreamHandler that:
+        - Writes to stdout using sys.stdout
+        - Uses color-coded formatting (ConsoleHandlerFormatter)
+        - Respects minimum log level from console_handler_level
+        - Prevents duplicate handlers
+        
+        The handler is only added if no console handler exists yet.
+        This ensures we don't get duplicate console output.
+
+        Example:
+            >>> logger = Logger(console_handler_level="INFO")
+            >>> logger.info("Visible")      # Shows in console
+            >>> logger.debug("Hidden")      # Not shown (below INFO)
         """
 
         if not self.console_handler:
@@ -214,8 +332,22 @@ class Logger:
 
     def enable_console_handler(self) -> None:
         """
-        Enables console logging by adding a console handler to the logger.
-        If the console handler already exists, it does nothing.
+        Enable logging to console with color-coded output.
+
+        Adds or re-enables console output using settings from initialization:
+        - Uses configured minimum log level
+        - Applies color coding based on log level
+        - Shows stack traces if verbose_errors_enabled is True
+
+        If console output is already enabled, this method has no effect.
+        Use disable_console_handler() to turn off console output.
+
+        Example:
+            >>> logger.disable_console_handler()  # Turn off console
+            >>> logger.warning("Hidden")          # Not shown
+            >>> logger.enable_console_handler()   # Turn back on
+            >>> logger.warning("Visible")         # Shows in yellow
+            [WARNING] Visible
         """
 
         self._add_console_handler()
@@ -223,9 +355,20 @@ class Logger:
 
     def disable_console_handler(self) -> None:
         """
-        Disables console logging by removing the console handler 
-        from the logger.
-        If the console handler doesn't exist, it does nothing.
+        Disable all console output.
+
+        Removes the console handler if one exists, stopping all output
+        to stdout. File logging (if enabled) continues to work normally.
+
+        The handler is properly cleaned up to prevent resource leaks.
+        Use enable_console_handler() to restore console output.
+
+        Example:
+            >>> logger.warning("Visible")         # Shows in console
+            [WARNING] Visible
+            >>> logger.disable_console_handler()  # Turn off console
+            >>> logger.error("Hidden")            # Only goes to file
+            >>> # Nothing shown in console
         """
 
         if self.console_handler:
@@ -235,13 +378,27 @@ class Logger:
 
     def _file_handler_formatter(self) -> logging.Formatter:
         """
-        Returns a custom formatter for the file handler.
+        Create a detailed formatter for file output.
 
-        This formatter formats log messages with a specific 
-        format including timestamp, level, and message.
+        Creates a FileHandlerFormatter that formats messages with:
+        - Millisecond-precision timestamps
+        - Log level indicators
+        - Full message text
+        - Optional stack traces based on settings
+        - Clean separation between entries
+        - Exception chain preservation
 
-        It also handles exceptions and formats them with a specific
-        format to restitute the error chain.
+        The format follows: "YYYY-MM-DD HH:MM:SS.mmm | LEVEL | message"
+        
+        Returns:
+            logging.Formatter: Configured formatter that produces
+                consistently formatted log file entries
+
+        Example output:
+            2024-01-01 12:34:56.789 | INFO | Process started
+            2024-01-01 12:34:57.123 | ERROR | Operation failed
+            Traceback (most recent call last):
+              File "app.py", line 10...
         """
 
         # Define a reference to the parent logger instance
@@ -251,27 +408,63 @@ class Logger:
 
         class FileHandlerFormatter(logging.Formatter):
             """
-            Custom formatter for file handler to format log messages
-            with a specific format including timestamp, level, and message.
+            Format file log messages with timestamps and stack traces.
 
-            This formatter also handles exceptions and can provide a
-            shortened version of the stack trace along with the message 
-            for verbose errors.
+            Provides:
+            - Timestamp with millisecond precision
+            - Consistent message formatting
+            - Log level indication
+            - Full stack traces for CRITICAL
+            - Optional stack traces for other levels
+            - Exception chain preservation
+
+            Format: "YYYY-MM-DD HH:MM:SS.mmm | LEVEL | message"
+
+            Stack traces are included based on:
+            - CRITICAL: Always included
+            - ERROR: Included if traceback_enabled
+            - Others: Never included
+
+            Example output:
+                2024-01-01 12:34:56.789 | ERROR | Failed to process file
+                Traceback (most recent call last):
+                  File "app.py", line 10, in process_file
+                    ...
             """
+
 
             def format(self, record: logging.LogRecord) -> str:
                 """
-                Formats the log record into a string.
-                This method is called when a log message is emitted.
-                It handles the formatting of the log message, including
-                the log level, message, and exception information when 
-                provided.
+                Format a log record with timestamp and optional stack traces.
+
+                Creates a detailed log entry with:
+                1. Millisecond-precision timestamp
+                2. Log level indicator
+                3. Full message text
+                4. Optional stack traces based on settings and level:
+                   - CRITICAL: Always includes full trace
+                   - ERROR: Includes if traceback_enabled=True
+                   - Others: Never includes traces
 
                 Args:
-                    record: The log record to be formatted.
+                    record (logging.LogRecord): Log record to format containing:
+                        - levelno: Numeric logging level
+                        - msg: The log message
+                        - exc_info: Exception info tuple or None
+                        - msecs: Milliseconds part of timestamp
+                        - asctime: Formatted timestamp base
 
                 Returns:
-                    A formatted string representing the log message.
+                    str: Fully formatted log entry with proper layout and
+                        line breaks for readability
+
+                Example:
+                    Input record: ERROR level with exception
+                    Output:
+                        2024-01-01 12:34:56.789 | ERROR | Operation failed
+
+                        Traceback (most recent call last):
+                          File "app.py", line 10...
                 """
 
                 # Manage verbose error logging
@@ -325,8 +518,25 @@ class Logger:
 
     def _add_file_handler(self) -> None:
         """
-        Adds a file handler to the logger if it doesn't already exist.
-        This handler writes log messages to the specified log file.
+        Set up file output handler with detailed formatting.
+
+        Creates and configures a FileHandler that:
+        - Writes to the specified log file path
+        - Uses detailed timestamps and formatting
+        - Includes stack traces based on settings
+        - Prevents duplicate handlers
+        - Handles file creation/opening
+
+        The handler is only added if:
+        - No file handler exists yet
+        - A valid log file path is configured
+
+        Example:
+            >>> logger = Logger(
+            ...     enable_file_handler=True,
+            ...     file_handler_log_file="app.log"
+            ... )
+            >>> logger.info("Saved to file")  # Written to app.log
         """
 
         if not self.file_handler and self.file_handler_log_file:
@@ -336,22 +546,43 @@ class Logger:
             self.logger.addHandler(self.file_handler)
 
 
-    def enable_file_handler(self, 
-        log_file: str | None = None, 
-        level: str | None = None, 
-        enable_traceback: bool | None = None
+    def enable_file_handler(
+        self,
+        log_file: Optional[str] = None,
+        level: Optional[str] = None,
+        enable_traceback: Optional[bool] = None
     ) -> None:
         """
-        Enables file logging by adding a file handler to the logger.
-        If the file handler already exists, it does nothing.
-        If a new log file is provided, it replaces the existing one.
+        Enable or reconfigure logging to file.
+
+        Sets up file logging with detailed formatting and timestamps.
+        If file logging is already active, reconfigures it with
+        any new settings provided.
 
         Args:
-            log_file: The name of the log file to write logs to.
-            level: The logging level for file output
-                ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL").
-            enable_traceback: A boolean indicating whether to include 
-                traceback information in the log messages.
+            log_file (Optional[str], optional): Path to log file. If None,
+                keeps current path. Defaults to None.
+            level (Optional[str], optional): Minimum level to log
+                ("DEBUG" through "CRITICAL"). If None, keeps current.
+                Defaults to None.
+            enable_traceback (Optional[bool], optional): Whether to include
+                stack traces. If None, keeps current. Defaults to None.
+
+        Any parameter left as None keeps its current value. To modify
+        specific settings without changing others, provide only the
+        parameters you want to change.
+
+        Example:
+            >>> # Basic file logging
+            >>> logger.enable_file_handler("app.log")
+            >>> # Change just the log level
+            >>> logger.enable_file_handler(level="DEBUG")
+            >>> # Full reconfiguration
+            >>> logger.enable_file_handler(
+            ...     "debug.log",
+            ...     "DEBUG",
+            ...     enable_traceback=True
+            ... )
         """
 
         if self.file_handler:
@@ -373,8 +604,22 @@ class Logger:
 
     def disable_file_handler(self) -> None:
         """
-        Disables file logging by removing the file handler from the logger.
-        If the file handler doesn't exist, it does nothing.
+        Disable logging to file.
+
+        Properly closes and removes the file handler if one exists.
+        After calling this:
+        - No new messages will be written to the log file
+        - The file handle is properly closed to prevent resource leaks
+        - Console logging (if enabled) continues normally
+        
+        The log file itself remains on disk and can still be read.
+        Use enable_file_handler() to start logging to file again.
+
+        Example:
+            >>> logger.enable_file_handler("app.log")
+            >>> logger.info("Saved")          # Written to file
+            >>> logger.disable_file_handler() # Stop file logging
+            >>> logger.info("Console only")   # Only to console
         """
 
         if self.file_handler:
@@ -385,92 +630,147 @@ class Logger:
 
     def enable_verbose_errors(self) -> None:
         """
-        Enables verbose error logging.
-        This allows for error or critical logs 
-        to be logged with a shortened stak trace.
-        """
+        Enable display of shortened stack traces in console output.
 
+        When enabled, ERROR and CRITICAL messages in console output will
+        include a simplified chain of exceptions showing:
+        - Exception types
+        - Error messages
+        - Exception chain (cause/context)
+        
+        This provides more debug information while keeping output readable.
+        File logging is not affected by this setting.
+
+        Example:
+            >>> logger.enable_verbose_errors()
+            >>> try:
+            ...     1/0
+            ... except Exception as e:
+            ...     logger.error(e)
+            [ERROR] division by zero
+               [1] ZeroDivisionError: division by zero
+        """
         self.verbose_errors_enabled = True
 
 
     def disable_verbose_errors(self) -> None:
         """
-        Disables verbose error logging.
-        """
+        Disable stack traces in console output.
 
+        When disabled, ERROR and CRITICAL messages in console output will
+        only show the error message without any stack trace information.
+        This produces cleaner, more user-friendly output.
+        
+        File logging is not affected by this setting.
+
+        Example:
+            >>> logger.disable_verbose_errors()
+            >>> try:
+            ...     1/0
+            ... except Exception as e:
+            ...     logger.error(e)
+            [ERROR] division by zero
+        """
         self.verbose_errors_enabled = False
 
 
-    def debug(self, msg: object) -> None:
+    def debug(self, msg: Any) -> None:
         """
-        Logs a debug message to the logger.
+        Log detailed information for debugging purposes.
+
+        Messages at this level provide detailed technical information
+        useful for debugging but normally not shown to users.
 
         Args:
-            msg: The message to be logged.
+            msg (Any): Message to log. Will be converted to string via str()
+
+        Example:
+            >>> logger.debug("Processing item 123 with params {x: 42}")
+            [DEBUG] Processing item 123 with params {x: 42}
         """
+        self.logger.debug(str(msg))
 
-        self.logger.debug(msg)
 
-
-    def info(self, msg: object) -> None:
+    def info(self, msg: Any) -> None:
         """
-        Logs an info message to the logger.
+        Log general information about program operation.
+
+        Messages at this level provide confirmation that things
+        are working as expected.
 
         Args:
-            msg: The message to be logged.
+            msg (Any): Message to log. Will be converted to string via str()
+
+        Example:
+            >>> logger.info("Successfully processed 10 items")
+            [INFO] Successfully processed 10 items
         """
+        self.logger.info(str(msg))
 
-        self.logger.info(msg)
 
-
-    def warning(self, msg: object) -> None:
+    def warning(self, msg: Any) -> None:
         """
-        Logs a warning message to the logger.
+        Log warnings about potential problems.
+
+        Messages at this level indicate that something unexpected
+        happened, but the program can continue operating.
 
         Args:
-            msg: The message to be logged.
+            msg (Any): Message to log. Will be converted to string via str()
+
+        Example:
+            >>> logger.warning("File is larger than expected")
+            [WARNING] File is larger than expected
         """
+        self.logger.warning(str(msg))
 
-        self.logger.warning(msg)
 
-
-    def error(self, error: object, msg: object | None = None) -> None:
+    def error(self, error: Union[Exception, str], msg: Optional[str] = None) -> None:
         """
-        Logs an error to the logger.
+        Log errors that prevent normal operation.
 
-        This method is used for logging errors that occur during
-        the execution of the program. It can be used to log exceptions
-        or any other error messages.
-
-        If the error is an exception, it logs the exception message
-        and the traceback (if enabled) to the log file.
+        Messages at this level indicate that the program encountered
+        an error but can recover or gracefully degrade functionality.
 
         Args:
-            error: The exception to be logged.
-            msg: An optional message to be logged in place of the exception one.
+            error (Union[Exception, str]): Error to log. Can be exception or message
+            msg (Optional[str], optional): Override message if error is exception.
+                Defaults to None (use error's message).
+
+        Example:
+            >>> try:
+            ...     raise ValueError("Bad input")
+            ... except ValueError as e:
+            ...     logger.error(e)
+            [ERROR] Bad input
+            >>> logger.error(e, "Failed to process input")
+            [ERROR] Failed to process input
         """
+        self.logger.error(msg or str(error), exc_info=bool(msg))
 
-        self.logger.error(msg or str(error), exc_info=True)
 
-
-    def critical(self, error: object, msg: object | None = None) -> None:
+    def critical(self, error: Union[Exception, str], msg: Optional[str] = None) -> None:
         """
-        Logs a critical error to the logger.
+        Log severe errors that prevent program operation.
 
-        This method is used for logging severe errors that may cause 
-        the program to terminate.
-
-        If file logging is enabled, it logs the exception message
-        and the full traceback (even if not enabled) to the log file.
-
-        Typically, this is used for logging unhandled exceptions
-        or for logging critical application errors.
+        Messages at this level indicate that the program cannot continue
+        running normally and will likely terminate or severely degrade.
+        Always includes full stack traces in file output.
 
         Args:
-            error: The critical error to be logged.
-            msg: An optional message to be logged in place of the exception one.
-        """
+            error (Union[Exception, str]): Error to log. Can be exception or message
+            msg (Optional[str], optional): Override message if error is exception.
+                Defaults to None (use error's message).
 
+        Example:
+            >>> try:
+            ...     raise RuntimeError("Fatal error")
+            ... except RuntimeError as e:
+            ...     logger.critical(e)
+            [CRITICAL] Fatal error
+            Traceback (most recent call last):
+              ...
+        """
         self.logger.critical(msg or str(error), exc_info=True)
 
 
