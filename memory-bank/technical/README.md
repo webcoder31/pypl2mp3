@@ -7,6 +7,7 @@ This section contains detailed technical information about PYPL2MP3, including i
 - [Requirements](requirements.md) - System and software requirements
 - [Dependencies](dependencies.md) - External libraries and tools
 - [Architecture](architecture.md) - System design and components
+- [Coding style](coding-style.md) - Python coding style guidelines
 
 ## Technical Stack Overview
 

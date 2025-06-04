@@ -13,6 +13,7 @@ This Memory Bank maintains comprehensive documentation and context for the PYPL2
   - [Requirements](technical/requirements.md)
   - [Dependencies](technical/dependencies.md)
   - [Architecture](technical/architecture.md)
+  - [Coding style](technical/coding-style.md)
 
 - [Implementation Details](implementation/README.md)
   - [Command Structure](implementation/command-structure.md)
@@ -31,5 +32,5 @@ This Memory Bank maintains comprehensive documentation and context for the PYPL2
 
 ## Last Updated
 
-- Date: 29/05/2025
-- Version: 1.0.0
+- Date: 04/06/2025
+- Version: 1.1.0
